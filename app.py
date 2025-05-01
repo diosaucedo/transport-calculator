@@ -1,4 +1,5 @@
-# Final Calculator with Streamlit Caching
+
+# Final Streamlit Calculator with Clean Output
 
 import streamlit as st
 import pandas as pd
@@ -10,7 +11,9 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 
 st.set_page_config(page_title="Transport Cost Calculator", layout="centered")
+st.image("FSD LOGO.png", width=180)
 st.title("Transport Cost Calculator")
+st.subheader("Built for Feeding San Diego")
 
 @st.cache_data
 def load_data():
@@ -44,7 +47,6 @@ def load_data():
     df.loc[(df['PROGRAM'] == 'SP') & (df['Total_Weight'] >= 2000), 'Weight_Tier'] = 'High'
     df.loc[(df['PROGRAM'] == 'PP') & (df['Total_Weight'] < 150000), 'Weight_Tier'] = 'All'
     df = df[df['Weight_Tier'] != 'Unassigned']
-
     return df
 
 @st.cache_resource
@@ -59,7 +61,7 @@ def train_models():
             continue
         X = subset[features]
         y = np.log1p(subset[target])
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=42)
 
         pre = ColumnTransformer([
             ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), ['Region','PROGRAM','Quarter']),
@@ -78,16 +80,12 @@ def train_models():
 
 model_dict = train_models()
 
-# === UI ===
-st.image("FSD LOGO.png", width=180)
-
-st.subheader("Built for Feeding San Diego")
-
-weight = st.number_input("What is the total weight in pounds?", min_value=0.0, step=1.0)
-region = st.selectbox("Where is the delivery going?", ['North Coastal (27.7 mi)', 'North Inland (46.6 mi)', 'Central (19.2 mi)', 'East (60.5 mi)', 'South (28.3 mi)'])
-agency = st.selectbox("Which agency is receiving the delivery?", ["AGENCY", "SP", "BP", "MP", "PP"])
-hh = st.number_input("How many households are served?", min_value=1, step=1)
-donated = st.slider("% Donated", 0, 100, 50)
+# === Input form ===
+weight = st.number_input("1. What is the total weight in pounds?", min_value=0.0, step=1.0)
+region = st.selectbox("2. Where is the delivery going?", ['North Coastal (27.7 mi)', 'North Inland (46.6 mi)', 'Central (19.2 mi)', 'East (60.5 mi)', 'South (28.3 mi)'])
+agency = st.selectbox("3. Which agency/program is it?", ["AGENCY", "SP", "BP", "MP", "PP"])
+hh = st.number_input("4. How many households are served?", min_value=1, step=1)
+donated = st.slider("5. Estimated % Donated", 0, 100, 50)
 
 if st.button("Calculate"):
     miles = float(region.split('(')[1].split(' ')[0])
@@ -125,16 +123,18 @@ if st.button("Calculate"):
     total_cost = np.expm1(pred) * 4
     cost_per_lb_per_mile = total_cost / (weight * miles)
 
-    st.markdown("""
-    <div style="background-color:#fff;padding:20px;border-radius:10px;max-width:350px">
+    st.markdown(f'''
+    <div style="background-color:#fff;padding:20px;border-radius:10px;max-width:350px;margin:auto">
     <h4 style="color:#3c763d;">Calculation Completed</h4>
-    <p><strong style='color:#333;'>Agency:</strong> <span style='color:#333'>{}</span></p>
-    <p><strong style='color:#333;'>Region:</strong> <span style='color:#333'>{}</span></p>
-    <p><strong style='color:#333;'>Weight:</strong> <span style='color:#333'>{:.1f} lbs</span></p>
-    <p><strong style='color:#333;'>Households:</strong> <span style='color:#333'>{}</span></p>
-    <p><strong style='color:#333;'>% Donated:</strong> <span style='color:#333'>{:.1f}%</span></p>
-    <p><strong style='color:#333;'>Distance:</strong> <span style='color:#333'>{:.1f} miles</span></p>
-    <hr style="border: none; border-top: 1px solid #ccc;">
-    <p style="color:#F7941D; font-size: 16px; font-weight:bold">Cost per lb per mile: ${:.4f}</p>
+    <p><strong style='color:#333;'>Agency:</strong> {agency}</p>
+    <p><strong style='color:#333;'>Region:</strong> {region}</p>
+    <p><strong style='color:#333;'>Weight:</strong> {weight:.1f} lbs</p>
+    <p><strong style='color:#333;'>Households:</strong> {hh}</p>
+    <p><strong style='color:#333;'>% Donated:</strong> {donated:.1f}%</p>
+    <p><strong style='color:#333;'>Distance:</strong> {miles:.1f} miles</p>
+    <hr style="border:none; border-top:1px solid #ccc;">
+    <p style="color:#F7941D;font-size:16px;font-weight:bold;text-align:center">
+        Cost per lb per mile: ${cost_per_lb_per_mile:.4f}
+    </p>
     </div>
-    """.format(agency, region, weight, hh, donated, miles, cost_per_lb_per_mile), unsafe_allow_html=True)
+    ''', unsafe_allow_html=True)

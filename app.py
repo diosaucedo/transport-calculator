@@ -1,4 +1,3 @@
-
 # Final Streamlit Calculator with Clean Output
 
 import streamlit as st
@@ -126,12 +125,12 @@ if st.button("Calculate"):
     st.markdown(f'''
     <div style="background-color:#fff;padding:20px;border-radius:10px;max-width:350px;margin:auto">
     <h4 style="color:#3c763d;">Calculation Completed</h4>
-    <p><strong style='color:#333;'>Agency:</strong> {agency}</p>
-    <p><strong style='color:#333;'>Region:</strong> {region}</p>
-    <p><strong style='color:#333;'>Weight:</strong> {weight:.1f} lbs</p>
-    <p><strong style='color:#333;'>Households:</strong> {hh}</p>
-    <p><strong style='color:#333;'>% Donated:</strong> {donated:.1f}%</p>
-    <p><strong style='color:#333;'>Distance:</strong> {miles:.1f} miles</p>
+    <p><strong style='color:#000;'>Agency:</strong> <span style='color:#000'>{agency}</span></p>
+    <p><strong style='color:#000;'>Region:</strong> <span style='color:#000'>{region}</span></p>
+    <p><strong style='color:#000;'>Weight:</strong> <span style='color:#000'>{weight:.1f} lbs</span></p>
+    <p><strong style='color:#000;'>Households:</strong> <span style='color:#000'>{hh}</span></p>
+    <p><strong style='color:#000;'>% Donated:</strong> <span style='color:#000'>{donated:.1f}%</span></p>
+    <p><strong style='color:#000;'>Distance:</strong> <span style='color:#000'>{miles:.1f} miles</span></p>
     <hr style="border:none; border-top:1px solid #ccc;">
     <p style="color:#F7941D;font-size:16px;font-weight:bold;text-align:center">
         Cost per lb per mile: ${cost_per_lb_per_mile:.4f}

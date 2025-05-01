@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -12,13 +11,13 @@ from sklearn.pipeline import Pipeline
 # === Fixed cost ===
 FIXED_COST = 2607
 
-# === Load logo ===
-def get_logo_base64():
+# === Load and display logo ===
+def load_logo():
     with open("FSD LOGO.png", "rb") as f:
         encoded_image = base64.b64encode(f.read()).decode("utf-8")
-    return encoded_image
+    return f"<img src='data:image/png;base64,{encoded_image}' style='height:80px;margin-bottom:20px;'>"
 
-# === Load and train model ===
+# === Model Training ===
 @st.cache_resource
 def load_and_train_model():
     final_quarterly_path = 'Final_Quarterly.xlsx'
@@ -80,6 +79,7 @@ def load_and_train_model():
 
 model_dict = load_and_train_model()
 
+# === Forecast function ===
 def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, miles):
     donated_ratio = donated_pct / 100.0
     quarterly_total = total_weight / 4
@@ -93,11 +93,10 @@ def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, mi
     elif program in ['BP', 'PP']:
         tier = 'All'
     else:
-        return None, None
+        return None
 
     model = model_dict.get((program, tier))
-    if model is None:
-        return None, None
+    if model is None: return None
 
     input_df = pd.DataFrame([{
         'Region': region,
@@ -115,34 +114,48 @@ def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, mi
     return cost_per_lb_per_mile, total_cost
 
 # === Streamlit UI ===
-st.image(f"data:image/png;base64,{get_logo_base64()}", use_column_width=False)
-st.title("Transportation Cost Calculator")
+st.markdown(load_logo(), unsafe_allow_html=True)
+st.header("Cost per Pound per Mile Calculator")
 
-weight = st.number_input("1. Total weight (lbs)", min_value=1.0, step=100.0)
-region_label = st.selectbox("2. Delivery Region", ['North Coastal (27.7 mi)', 'North Inland (46.6 mi)', 'Central (19.2 mi)', 'East (60.5 mi)', 'South (28.3 mi)'])
-region_miles = {
-    'North Coastal (27.7 mi)': 27.7, 'North Inland (46.6 mi)': 46.6,
-    'Central (19.2 mi)': 19.2, 'East (60.5 mi)': 60.5, 'South (28.3 mi)': 28.3
+weight = st.number_input("1. What is the total weight in pounds?", min_value=0.0, step=100.0)
+region_display_to_miles = {
+    'North Coastal (27.7 mi)': 27.7,
+    'North Inland (46.6 mi)': 46.6,
+    'Central (19.2 mi)': 19.2,
+    'East (60.5 mi)': 60.5,
+    'South (28.3 mi)': 28.3
 }
-agency = st.selectbox("3. Program/Agency", ["AGENCY", "SP", "BP", "MP", "PP"])
-hh = st.number_input("4. Households served", min_value=1, step=1)
-donated = st.slider("5. Estimated % Donated", min_value=0, max_value=100, value=50)
+region_label = st.selectbox("2. Where is the delivery going?", list(region_display_to_miles.keys()))
+distance = region_display_to_miles[region_label]
+
+agency = st.selectbox("3. Which agency/program is it?", ["AGENCY", "SP", "BP", "MP", "PP"])
+hh = st.number_input("4. How many households are served?", min_value=0, step=1)
+donated = st.slider("5. Estimated % Donated", 0, 100, 50)
 
 if st.button("Calculate & Predict"):
-    miles = region_miles[region_label]
-    cost_per_lb_mile, total_cost = forecast_cost_per_lb_mile(agency, region_label, hh, weight, donated, miles)
-
-    if cost_per_lb_mile is None:
-        st.error("No model available for selected inputs.")
+    if weight <= 0 or hh <= 0:
+        st.warning("⚠️ Enter valid weight and households.")
     else:
-        st.markdown("---")
-        st.success("### ✅ Calculation Completed")
-        st.markdown(f"**Agency:** {agency}")
-        st.markdown(f"**Region:** {region_label}")
-        st.markdown(f"**Weight:** {weight:.1f} lbs")
-        st.markdown(f"**Households:** {hh}")
-        st.markdown(f"**% Donated:** {donated:.1f}%")
-        st.markdown(f"**Distance:** {miles} miles")
-        st.markdown("---")
-        st.markdown(f"### 💰 Cost per lb per mile: **${cost_per_lb_mile:.4f}**")
-        st.markdown(f"### 🚚 Total cost of delivery: **${total_cost:,.2f}**")
+        result = forecast_cost_per_lb_mile(agency, region_label, hh, weight, donated, distance)
+        if result is None:
+            st.error("⚠️ No model available for selected combination.")
+        else:
+            pred_cost_per_lb_mile, total_cost = result
+            st.markdown(f"""
+                <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; max-width: 400px; border: 1px solid #ccc;">
+                    <h4 style="color: #3c763d;">Calculation Completed</h4>
+                    <p><strong>Agency:</strong> {agency}</p>
+                    <p><strong>Region:</strong> {region_label}</p>
+                    <p><strong>Weight:</strong> {weight:.1f} lbs</p>
+                    <p><strong>Households:</strong> {hh}</p>
+                    <p><strong>% Donated:</strong> {donated:.1f}%</p>
+                    <p><strong>Distance:</strong> {distance} miles</p>
+                    <hr>
+                    <p style="text-align: center; color: #F7941D; font-size: 16px; font-weight: bold;">
+                        Cost per lb per mile: ${pred_cost_per_lb_mile:.4f}
+                    </p>
+                    <p style="text-align: center; color: #3c763d; font-size: 16px; font-weight: bold;">
+                        Total cost of delivery: ${total_cost:,.2f}
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)

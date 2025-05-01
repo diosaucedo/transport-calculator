@@ -1,5 +1,5 @@
 
-from flask import Flask, render_template, request
+import streamlit as st
 import pandas as pd
 import numpy as np
 import base64
@@ -9,11 +9,17 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 
-app = Flask(__name__)
-
+# === Fixed cost ===
 FIXED_COST = 2607
 
-# === Model Training ===
+# === Load logo ===
+def get_logo_base64():
+    with open("FSD LOGO.png", "rb") as f:
+        encoded_image = base64.b64encode(f.read()).decode("utf-8")
+    return encoded_image
+
+# === Load and train model ===
+@st.cache_resource
 def load_and_train_model():
     final_quarterly_path = 'Final_Quarterly.xlsx'
     merged_final_path = 'merged_final.xlsx'
@@ -74,7 +80,6 @@ def load_and_train_model():
 
 model_dict = load_and_train_model()
 
-# === Forecast Function ===
 def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, miles):
     donated_ratio = donated_pct / 100.0
     quarterly_total = total_weight / 4
@@ -91,7 +96,8 @@ def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, mi
         return None, None
 
     model = model_dict.get((program, tier))
-    if model is None: return None, None
+    if model is None:
+        return None, None
 
     input_df = pd.DataFrame([{
         'Region': region,
@@ -108,29 +114,35 @@ def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, mi
     cost_per_lb_per_mile = total_cost / (total_weight * miles)
     return cost_per_lb_per_mile, total_cost
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    result = None
-    if request.method == "POST":
-        weight = float(request.form["weight"])
-        distance = float(request.form["distance"])
-        agency = request.form["agency"]
-        hh = int(request.form["hh"])
-        donated = float(request.form["donated"])
-        region_label = request.form["region_label"]
+# === Streamlit UI ===
+st.image(f"data:image/png;base64,{get_logo_base64()}", use_column_width=False)
+st.title("Transportation Cost Calculator")
 
-        cost_per_lb, total = forecast_cost_per_lb_mile(agency, region_label, hh, weight, donated, distance)
-        result = {
-            "agency": agency,
-            "region": region_label,
-            "weight": weight,
-            "hh": hh,
-            "donated": donated,
-            "distance": distance,
-            "cost_per_lb": round(cost_per_lb, 4),
-            "total": round(total, 2)
-        }
-    return render_template("index.html", result=result)
+weight = st.number_input("1. Total weight (lbs)", min_value=1.0, step=100.0)
+region_label = st.selectbox("2. Delivery Region", ['North Coastal (27.7 mi)', 'North Inland (46.6 mi)', 'Central (19.2 mi)', 'East (60.5 mi)', 'South (28.3 mi)'])
+region_miles = {
+    'North Coastal (27.7 mi)': 27.7, 'North Inland (46.6 mi)': 46.6,
+    'Central (19.2 mi)': 19.2, 'East (60.5 mi)': 60.5, 'South (28.3 mi)': 28.3
+}
+agency = st.selectbox("3. Program/Agency", ["AGENCY", "SP", "BP", "MP", "PP"])
+hh = st.number_input("4. Households served", min_value=1, step=1)
+donated = st.slider("5. Estimated % Donated", min_value=0, max_value=100, value=50)
 
-if __name__ == "__main__":
-    app.run(debug=True)
+if st.button("Calculate & Predict"):
+    miles = region_miles[region_label]
+    cost_per_lb_mile, total_cost = forecast_cost_per_lb_mile(agency, region_label, hh, weight, donated, miles)
+
+    if cost_per_lb_mile is None:
+        st.error("No model available for selected inputs.")
+    else:
+        st.markdown("---")
+        st.success("### ✅ Calculation Completed")
+        st.markdown(f"**Agency:** {agency}")
+        st.markdown(f"**Region:** {region_label}")
+        st.markdown(f"**Weight:** {weight:.1f} lbs")
+        st.markdown(f"**Households:** {hh}")
+        st.markdown(f"**% Donated:** {donated:.1f}%")
+        st.markdown(f"**Distance:** {miles} miles")
+        st.markdown("---")
+        st.markdown(f"### 💰 Cost per lb per mile: **${cost_per_lb_mile:.4f}**")
+        st.markdown(f"### 🚚 Total cost of delivery: **${total_cost:,.2f}**")

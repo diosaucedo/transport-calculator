@@ -15,7 +15,7 @@ FIXED_COST = 2607
 def load_logo():
     with open("FSD LOGO.png", "rb") as f:
         encoded_image = base64.b64encode(f.read()).decode("utf-8")
-    return f"<div style='text-align: center;'><img src='data:image/png;base64,{encoded_image}' style='height: 80px; margin-bottom: 20px;'></div>"
+    return f'<div style="text-align: center;"><img src="data:image/png;base64,{encoded_image}" style="height: 80px; margin-bottom: 20px;"></div>'
 
 # === Model Training ===
 @st.cache_resource
@@ -35,8 +35,8 @@ def load_and_train_model():
 
     programs = ['AGENCY', 'SP', 'BP', 'MP', 'PP']
     df = quarter_df[quarter_df['PROGRAM'].isin(programs) & (quarter_df['Cost'] > 1)].copy()
-    df['Total_Weight'] = df['Weight']
     df['Weight_Tier'] = 'Unassigned'
+    df['Total_Weight'] = df['Weight']
 
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] < 8000), 'Weight_Tier'] = 'Low'
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] >= 8000) & (df['Total_Weight'] <= 20000), 'Weight_Tier'] = 'Mid'
@@ -54,7 +54,8 @@ def load_and_train_model():
 
     model_dict = {}
     for (program, tier), subset in df.groupby(['PROGRAM', 'Weight_Tier']):
-        if len(subset) < 20: continue
+        if len(subset) < 20:
+            continue
         X = subset[features]
         y = np.log1p(subset[target])
         X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -76,7 +77,6 @@ def load_and_train_model():
 
 model_dict = load_and_train_model()
 
-# === Forecast function ===
 def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, miles):
     donated_ratio = donated_pct / 100.0
     quarterly_total = total_weight / 4
@@ -93,7 +93,8 @@ def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, mi
         return None
 
     model = model_dict.get((program, tier))
-    if model is None: return None
+    if model is None:
+        return None
 
     input_df = pd.DataFrame([{
         'Region': region,
@@ -113,60 +114,59 @@ def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, mi
 # === UI Layout ===
 st.markdown(load_logo(), unsafe_allow_html=True)
 
-with st.container():
-    st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
+st.markdown("<h4>1. What is the total weight in pounds?</h4>", unsafe_allow_html=True)
+weight = st.number_input("", min_value=0.0, step=100.0, format="%.2f")
 
-    st.markdown("### 1. What is the total weight in pounds?")
-    weight = st.number_input("", min_value=0.0, format="%.2f", key="weight", step=100.0)
+st.markdown("<h4>2. Where is the delivery going?</h4>", unsafe_allow_html=True)
+region_options = {
+    'North Coastal (27.7 mi)': 27.7,
+    'North Inland (46.6 mi)': 46.6,
+    'Central (19.2 mi)': 19.2,
+    'East (60.5 mi)': 60.5,
+    'South (28.3 mi)': 28.3
+}
+region_label = st.selectbox("", list(region_options.keys()))
+distance = region_options[region_label]
 
-    st.markdown("### 2. Where is the delivery going?")
-    region_options = {
-        'North Coastal (27.7 mi)': 27.7,
-        'North Inland (46.6 mi)': 46.6,
-        'Central (19.2 mi)': 19.2,
-        'East (60.5 mi)': 60.5,
-        'South (28.3 mi)': 28.3
-    }
-    region_label = st.selectbox("", list(region_options.keys()))
-    distance = region_options[region_label]
+st.markdown("<h4>3. Which agency/program is it?</h4>", unsafe_allow_html=True)
+agency = st.selectbox("", ["AGENCY", "SP", "BP", "MP", "PP"])
 
-    st.markdown("### 3. Which agency/program is it?")
-    agency = st.selectbox("", ["AGENCY", "SP", "BP", "MP", "PP"])
+st.markdown("<h4>4. How many households are served?</h4>", unsafe_allow_html=True)
+hh = st.number_input("", min_value=0, step=1)
 
-    st.markdown("### 4. How many households are served?")
-    hh = st.number_input("", min_value=0, step=1, key="hh")
+st.markdown("<h4>5. Estimated % Donated</h4>", unsafe_allow_html=True)
+donated = st.slider("", 0, 100, 50)
 
-    st.markdown("### 5. Estimated % Donated")
-    donated = st.slider("", 0, 100, 50)
+st.markdown("<br>", unsafe_allow_html=True)
 
-    if st.button("Calculate & Predict"):
-        if weight <= 0 or hh <= 0:
-            st.warning("⚠️ Enter valid weight and households.")
+calculate = st.button("Calculate & Predict", type="primary")
+
+if calculate:
+    if weight <= 0 or hh <= 0:
+        st.warning("⚠️ Enter valid weight and households.")
+    else:
+        result = forecast_cost_per_lb_mile(agency, region_label, hh, weight, donated, distance)
+        if result is None:
+            st.error("⚠️ No model available for selected combination.")
         else:
-            result = forecast_cost_per_lb_mile(agency, region_label, hh, weight, donated, distance)
-            if result is None:
-                st.error("⚠️ No model available for selected combination.")
-            else:
-                pred_cost_per_lb_mile, total_cost = result
-                st.markdown(f"""
+            pred_cost_per_lb_mile, total_cost = result
+            st.markdown(f"""
                 <div style='text-align: center;'>
                     <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 350px;">
                         <h4 style="color: #3c763d; margin-top: 0;">Calculation Completed</h4>
-                        <p><strong style='color: #333;'>Agency:</strong> <span style='color:#333'>{agency}</span></p>
-                        <p><strong style='color: #333;'>Region:</strong> <span style='color:#333'>{region_label}</span></p>
-                        <p><strong style='color: #333;'>Weight:</strong> <span style='color:#333'>{weight:.1f} lbs</span></p>
-                        <p><strong style='color: #333;'>Households:</strong> <span style='color:#333'>{hh}</span></p>
-                        <p><strong style='color: #333;'>% Donated:</strong> <span style='color:#333'>{donated:.1f}%</span></p>
-                        <p><strong style='color: #333;'>Distance:</strong> <span style='color:#333'>{distance} miles</span></p>
+                        <p><strong style='color: #000;'>Agency:</strong> <span style='color:#000'>{agency}</span></p>
+                        <p><strong style='color: #000;'>Region:</strong> <span style='color:#000'>{region_label}</span></p>
+                        <p><strong style='color: #000;'>Weight:</strong> <span style='color:#000'>{weight:.1f} lbs</span></p>
+                        <p><strong style='color: #000;'>Households:</strong> <span style='color:#000'>{hh}</span></p>
+                        <p><strong style='color: #000;'>% Donated:</strong> <span style='color:#000'>{donated:.1f}%</span></p>
+                        <p><strong style='color: #000;'>Distance:</strong> <span style='color:#000'>{distance} miles</span></p>
                         <hr style="border: none; border-top: 1px solid #ccc;">
                         <p style="text-align: center; color: #F7941D; font-size: 16px; font-weight: bold;">
-                            Cost per lb per mile: ${pred_cost_per_lb_per_mile:.4f}
+                            Cost per lb per mile: ${pred_cost_per_lb_mile:.4f}
                         </p>
                         <p style="text-align: center; color: #3c763d; font-size: 16px; font-weight: bold;">
                             Total cost of delivery: ${total_cost:,.2f}
                         </p>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
+            """, unsafe_allow_html=True)

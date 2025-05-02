@@ -1,4 +1,4 @@
-# app.py
+# app.py (Streamlit version of your calculator)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -18,27 +18,22 @@ TRANSPORT_RATE = 0.02
 FSD_GREEN = "#6BA539"
 FSD_ORANGE = "#F7941D"
 
+# === Logo ===
+with open("FSD LOGO.png", "rb") as f:
+    encoded_image = base64.b64encode(f.read()).decode("utf-8")
+logo_path = f"data:image/png;base64,{encoded_image}"
+
 # === Load Data ===
 @st.cache_data
 def load_data():
-    merged_df = pd.read_excel("merged_final.xlsx")
-    quarter_df = pd.read_excel("Final_Quarterly.xlsx")
+    df = pd.read_excel("Final_Quarterly.xlsx")
+    df = df[df["Cost"] > 1].copy()
 
-    merged_df = merged_df[['Location', 'PROGRAM', '% Donated (per location)']]
-    program_means = merged_df.groupby('PROGRAM')['% Donated (per location)'].mean().reset_index()
-    program_means.rename(columns={'% Donated (per location)': 'Program_Mean_Donated_%'}, inplace=True)
+    df['Estimated_Donated_Weight'] = df['Weight'] * df['Estimated_Donated_%']
+    df['Estimated_Purchased_Weight'] = df['Weight'] - df['Estimated_Donated_Weight']
+    df['Total_Weight'] = df['Estimated_Donated_Weight'] + df['Estimated_Purchased_Weight']
 
-    quarter_df = quarter_df.merge(merged_df, on=['Location', 'PROGRAM'], how='left')
-    quarter_df = quarter_df.merge(program_means, on='PROGRAM', how='left')
-
-    quarter_df['Estimated_Donated_%'] = 0.8 * quarter_df['% Donated (per location)'] + 0.2 * quarter_df['Program_Mean_Donated_%']
-    quarter_df['Estimated_Donated_Weight'] = quarter_df['Estimated_Donated_%'] * quarter_df['Weight']
-    quarter_df['Estimated_Purchased_Weight'] = quarter_df['Weight'] - quarter_df['Estimated_Donated_Weight']
-    quarter_df['Total_Weight'] = quarter_df['Estimated_Donated_Weight'] + quarter_df['Estimated_Purchased_Weight']
-
-    df = quarter_df[quarter_df['Cost'] > 1].copy()
     df['Weight_Tier'] = 'Unassigned'
-
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] < 8000), 'Weight_Tier'] = 'Low'
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] >= 8000) & (df['Total_Weight'] <= 20000), 'Weight_Tier'] = 'Mid'
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] > 20000), 'Weight_Tier'] = 'High'
@@ -52,6 +47,7 @@ def load_data():
     return df[df['Weight_Tier'] != 'Unassigned']
 
 # === Train Models ===
+@st.cache_resource
 def train_models(df):
     model_dict = {}
     scores = []
@@ -74,7 +70,6 @@ def train_models(df):
             ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), cat_cols),
             ('num', 'passthrough', num_cols)
         ])
-
         pipe = Pipeline([
             ('preprocessor', pre),
             ('regressor', xgb.XGBRegressor(objective='reg:squarederror', n_estimators=200))
@@ -149,8 +144,8 @@ def predict(model_dict, score_df, program, region, hh, weight, donated_pct, mile
 
 # === UI ===
 st.set_page_config(page_title="FSD Cost Estimator", layout="centered")
-st.image("FSD LOGO.png", width=160)
-st.title("Annual Food Program Cost Estimator")
+st.image("FSD LOGO.png", width=180)
+st.title("Cost Estimator")
 
 region_options = {
     'North Coastal (27.7 mi)': 27.7,
@@ -161,11 +156,21 @@ region_options = {
 }
 
 with st.form("estimator"):
-    region_label = st.selectbox("Region:", list(region_options.keys()))
-    program = st.selectbox("Program:", ["AGENCY", "SP", "BP", "MP", "PP"])
-    donated_pct = st.slider("Estimated % Donated", 0, 100, 50)
-    hh = st.number_input("Households Served", min_value=1, value=100)
-    weight = st.number_input("Total Annual Weight (lbs)", min_value=1.0, value=10000.0)
+    st.markdown("<h4>1. Enter total weight (lbs):</h4>", unsafe_allow_html=True)
+    weight = st.number_input("", min_value=1.0, value=2000.0)
+
+    st.markdown("<h4>2. Select delivery region:</h4>", unsafe_allow_html=True)
+    region_label = st.selectbox("", list(region_options.keys()))
+
+    st.markdown("<h4>3. Select agency/program:</h4>", unsafe_allow_html=True)
+    program = st.selectbox("", ["AGENCY", "SP", "BP", "MP", "PP"])
+
+    st.markdown("<h4>4. Enter number of households:</h4>", unsafe_allow_html=True)
+    hh = st.number_input("", min_value=1, value=100)
+
+    st.markdown("<h4>5. Estimated % food donated:</h4>", unsafe_allow_html=True)
+    donated_pct = st.slider("", 0, 100, 50)
+
     submitted = st.form_submit_button("Estimate Cost")
 
 if submitted:
@@ -177,13 +182,13 @@ if submitted:
 
     if result:
         st.markdown(f"""
-        <div style='background-color: #fff; padding: 20px; border-radius: 8px; max-width: 500px; margin: auto;'>
+        <div style='background-color: #fff; padding: 20px; border-radius: 8px; max-width: 500px; margin: auto; color: black;'>
         <h4 style='color: {FSD_GREEN};'>User Inputs</h4>
         <p><strong>Region:</strong> {region_label}</p>
         <p><strong>Program:</strong> {program}</p>
         <p><strong>% Donated:</strong> {donated_pct}%</p>
         <p><strong>Households:</strong> {hh}</p>
-        <p><strong>Total Weight:</strong> {weight} lbs</p>
+        <p><strong>Total Weight:</strong> {weight:.1f} lbs</p>
         <p><strong>Distance:</strong> {miles} miles</p>
         <hr>
         <h4 style='color: {FSD_ORANGE};'>Estimated Costs</h4>
@@ -198,4 +203,4 @@ if submitted:
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.error("Prediction failed. Check inputs or try again.")
+        st.error("Prediction failed. Please check inputs.")

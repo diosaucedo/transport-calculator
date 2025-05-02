@@ -148,7 +148,7 @@ def predict_total_annual_cost(program, region, hh, total_weight, donated_pct, mi
 # === UI ===
 st.set_page_config(page_title="Cost Estimator", layout="centered")
 st.markdown(f"<div style='text-align: center;'><img src='{logo_path}' style='height: 110px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
-st.markdown("<h2 style='text-align: center;'>Annual Food Program Cost Estimator</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center;'>Cost Estimator</h2>", unsafe_allow_html=True)
 
 region_options = {
     'North Coastal (27.7 mi)': 27.7,

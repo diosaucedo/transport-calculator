@@ -1,42 +1,43 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
-import base64
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import base64
 
-# === Fixed cost ===
-FIXED_COST = 2607
+# === Constants ===
+TOTAL_FIXED_COST = 13_044_792
+TOTAL_ANNUAL_WEIGHT = 17_562_606
+FIXED_COST_PER_LB = TOTAL_FIXED_COST / TOTAL_ANNUAL_WEIGHT
+TRANSPORT_RATE = 0.02
+FSD_GREEN = "#6BA539"
+FSD_ORANGE = "#F7941D"
 
-# === Load logo ===
-def load_logo():
-    with open("FSD LOGO.png", "rb") as f:
-        encoded_image = base64.b64encode(f.read()).decode("utf-8")
-    return f'<div style="text-align: center;"><img src="data:image/png;base64,{encoded_image}" style="height: 80px; margin-bottom: 20px;"></div>'
-
-# === Model Training ===
-@st.cache_resource
-def load_and_train_model():
-    quarter_df = pd.read_excel("Final_Quarterly.xlsx")
+# === Load Data ===
+@st.cache_data
+def load_data():
     merged_df = pd.read_excel("merged_final.xlsx")
+    quarter_df = pd.read_excel("Final_Quarterly.xlsx")
 
     merged_df = merged_df[['Location', 'PROGRAM', '% Donated (per location)']]
     program_means = merged_df.groupby('PROGRAM')['% Donated (per location)'].mean().reset_index()
     program_means.rename(columns={'% Donated (per location)': 'Program_Mean_Donated_%'}, inplace=True)
+
     quarter_df = quarter_df.merge(merged_df, on=['Location', 'PROGRAM'], how='left')
     quarter_df = quarter_df.merge(program_means, on='PROGRAM', how='left')
 
-    quarter_df['Estimated_Donated_%'] = (
-        0.8 * quarter_df['% Donated (per location)'] + 0.2 * quarter_df['Program_Mean_Donated_%']
-    )
+    quarter_df['Estimated_Donated_%'] = 0.8 * quarter_df['% Donated (per location)'] + 0.2 * quarter_df['Program_Mean_Donated_%']
+    quarter_df['Estimated_Donated_Weight'] = quarter_df['Estimated_Donated_%'] * quarter_df['Weight']
+    quarter_df['Estimated_Purchased_Weight'] = quarter_df['Weight'] - quarter_df['Estimated_Donated_Weight']
+    quarter_df['Total_Weight'] = quarter_df['Estimated_Donated_Weight'] + quarter_df['Estimated_Purchased_Weight']
 
-    programs = ['AGENCY', 'SP', 'BP', 'MP', 'PP']
-    df = quarter_df[quarter_df['PROGRAM'].isin(programs) & (quarter_df['Cost'] > 1)].copy()
+    df = quarter_df[quarter_df['Cost'] > 1].copy()
     df['Weight_Tier'] = 'Unassigned'
-    df['Total_Weight'] = df['Weight']
 
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] < 8000), 'Weight_Tier'] = 'Low'
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] >= 8000) & (df['Total_Weight'] <= 20000), 'Weight_Tier'] = 'Mid'
@@ -47,77 +48,110 @@ def load_and_train_model():
     df.loc[(df['PROGRAM'] == 'SP') & (df['Total_Weight'] < 2000), 'Weight_Tier'] = 'Low'
     df.loc[(df['PROGRAM'] == 'SP') & (df['Total_Weight'] >= 2000), 'Weight_Tier'] = 'High'
     df.loc[(df['PROGRAM'] == 'PP') & (df['Total_Weight'] < 150000), 'Weight_Tier'] = 'All'
-    df = df[df['Weight_Tier'] != 'Unassigned']
 
-    features = ['Region', 'PROGRAM', 'Quarter', 'hh', 'Weight', 'Estimated_Donated_%']
-    target = 'Cost'
+    return df[df['Weight_Tier'] != 'Unassigned']
 
+# === Train Models ===
+def train_models(df):
     model_dict = {}
+    scores = []
+    features = ['Region', 'PROGRAM', 'Quarter', 'hh', 'Estimated_Donated_Weight', 'Estimated_Purchased_Weight']
+    target = 'Cost'
+    cat_cols = ['Region', 'PROGRAM', 'Quarter']
+    num_cols = [col for col in features if col not in cat_cols]
+
     for (program, tier), subset in df.groupby(['PROGRAM', 'Weight_Tier']):
         if len(subset) < 20:
             continue
         X = subset[features]
         y = np.log1p(subset[target])
-        X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=42)
+        mask = (~y.isna()) & (~np.isinf(y))
+        X = X[mask]
+        y = y[mask]
 
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         pre = ColumnTransformer([
-            ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), ['Region', 'PROGRAM', 'Quarter']),
-            ('num', 'passthrough', ['hh', 'Weight', 'Estimated_Donated_%'])
+            ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), cat_cols),
+            ('num', 'passthrough', num_cols)
         ])
 
         pipe = Pipeline([
             ('preprocessor', pre),
             ('regressor', xgb.XGBRegressor(objective='reg:squarederror', n_estimators=200))
         ])
-
         pipe.fit(X_train, y_train)
+
+        y_pred = np.expm1(pipe.predict(X_test))
+        y_actual = np.expm1(y_test)
+
         model_dict[(program, tier)] = pipe
+        scores.append({
+            'Program': program,
+            'Weight_Tier': tier,
+            'MAE': mean_absolute_error(y_actual, y_pred),
+            'RMSE': np.sqrt(mean_squared_error(y_actual, y_pred))
+        })
 
-    return model_dict
+    return model_dict, pd.DataFrame(scores)
 
-model_dict = load_and_train_model()
-
-def forecast_cost_per_lb_mile(program, region, hh, total_weight, donated_pct, miles):
-    donated_ratio = donated_pct / 100.0
-    quarterly_total = total_weight / 4
+# === Predict ===
+def predict(model_dict, score_df, program, region, hh, weight, donated_pct, miles):
+    q_weight = weight / 4
+    q_donated = q_weight * (donated_pct / 100.0)
+    q_purchased = q_weight * (1 - (donated_pct / 100.0))
 
     if program == 'AGENCY':
-        tier = 'Low' if quarterly_total < 8000 else 'Mid' if quarterly_total <= 20000 else 'High'
+        tier = 'Low' if q_weight < 8000 else 'Mid' if q_weight <= 20000 else 'High'
     elif program == 'MP':
-        tier = 'Low' if quarterly_total < 6000 else 'High'
+        tier = 'Low' if q_weight < 6000 else 'High'
     elif program == 'SP':
-        tier = 'Low' if quarterly_total < 2000 else 'High'
+        tier = 'Low' if q_weight < 2000 else 'High'
     elif program in ['BP', 'PP']:
         tier = 'All'
     else:
         return None
 
     model = model_dict.get((program, tier))
-    if model is None:
+    if not model:
         return None
 
-    input_df = pd.DataFrame([{
+    row = score_df[(score_df['Program'] == program) & (score_df['Weight_Tier'] == tier)]
+    if row.empty:
+        return None
+
+    mae = row['MAE'].values[0]
+    rmse = row['RMSE'].values[0]
+
+    df_input = pd.DataFrame([{
         'Region': region,
         'PROGRAM': program,
         'Quarter': 'Q1',
         'hh': hh,
-        'Weight': total_weight,
-        'Estimated_Donated_%': donated_ratio
+        'Estimated_Donated_Weight': q_donated,
+        'Estimated_Purchased_Weight': q_purchased
     }])
 
-    pred = model.predict(input_df)[0]
-    base_cost = np.expm1(pred) * 4
-    total_cost = base_cost + FIXED_COST
-    cost_per_lb_per_mile = total_cost / (total_weight * miles)
-    return cost_per_lb_per_mile, total_cost
+    pred = np.expm1(model.predict(df_input)[0])
+    base_cost = pred * 4
+    fixed = weight * FIXED_COST_PER_LB
+    transport = weight * miles * TRANSPORT_RATE
+    total = base_cost + fixed + transport
+    return {
+        'Quarterly Cost': round(pred, 2),
+        'Base Annual Cost': round(base_cost, 2),
+        'Fixed Cost': round(fixed, 2),
+        'Transport Cost': round(transport, 2),
+        'Total Cost': round(total, 2),
+        'Cost per lb': round(total / weight, 4),
+        'Upper Bound MAE': round(total + mae * 4, 2),
+        'Upper Bound RMSE': round(total + rmse * 4, 2)
+    }
 
-# === UI Layout ===
-st.markdown(load_logo(), unsafe_allow_html=True)
+# === UI ===
+st.set_page_config(page_title="FSD Cost Estimator", layout="centered")
+st.image("FSD LOGO.png", width=160)
+st.title("Annual Food Program Cost Estimator")
 
-st.markdown("<h4>1. What is the total weight in pounds?</h4>", unsafe_allow_html=True)
-weight = st.number_input("", min_value=0.0, step=100.0, format="%.2f")
-
-st.markdown("<h4>2. Where is the delivery going?</h4>", unsafe_allow_html=True)
 region_options = {
     'North Coastal (27.7 mi)': 27.7,
     'North Inland (46.6 mi)': 46.6,
@@ -125,48 +159,43 @@ region_options = {
     'East (60.5 mi)': 60.5,
     'South (28.3 mi)': 28.3
 }
-region_label = st.selectbox("", list(region_options.keys()))
-distance = region_options[region_label]
 
-st.markdown("<h4>3. Which agency/program is it?</h4>", unsafe_allow_html=True)
-agency = st.selectbox("", ["AGENCY", "SP", "BP", "MP", "PP"])
+with st.form("estimator"):
+    region_label = st.selectbox("Region:", list(region_options.keys()))
+    program = st.selectbox("Program:", ["AGENCY", "SP", "BP", "MP", "PP"])
+    donated_pct = st.slider("Estimated % Donated", 0, 100, 50)
+    hh = st.number_input("Households Served", min_value=1, value=100)
+    weight = st.number_input("Total Annual Weight (lbs)", min_value=1.0, value=10000.0)
+    submitted = st.form_submit_button("Estimate Cost")
 
-st.markdown("<h4>4. How many households are served?</h4>", unsafe_allow_html=True)
-hh = st.number_input("", min_value=0, step=1)
+if submitted:
+    with st.spinner("Loading models and calculating..."):
+        df = load_data()
+        models, scores = train_models(df)
+        miles = region_options[region_label]
+        result = predict(models, scores, program, region_label, hh, weight, donated_pct, miles)
 
-st.markdown("<h4>5. Estimated % Donated</h4>", unsafe_allow_html=True)
-donated = st.slider("", 0, 100, 50)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-calculate = st.button("Calculate & Predict", type="primary")
-
-if calculate:
-    if weight <= 0 or hh <= 0:
-        st.warning("⚠️ Enter valid weight and households.")
+    if result:
+        st.markdown(f"""
+        <div style='background-color: #fff; padding: 20px; border-radius: 8px; max-width: 500px; margin: auto;'>
+        <h4 style='color: {FSD_GREEN};'>User Inputs</h4>
+        <p><strong>Region:</strong> {region_label}</p>
+        <p><strong>Program:</strong> {program}</p>
+        <p><strong>% Donated:</strong> {donated_pct}%</p>
+        <p><strong>Households:</strong> {hh}</p>
+        <p><strong>Total Weight:</strong> {weight} lbs</p>
+        <p><strong>Distance:</strong> {miles} miles</p>
+        <hr>
+        <h4 style='color: {FSD_ORANGE};'>Estimated Costs</h4>
+        <p><strong>Quarterly Cost:</strong> ${result['Quarterly Cost']:,.2f}</p>
+        <p><strong>Base Annual Cost:</strong> ${result['Base Annual Cost']:,.2f}</p>
+        <p><strong>Fixed Cost:</strong> ${result['Fixed Cost']:,.2f}</p>
+        <p><strong>Transport Cost:</strong> ${result['Transport Cost']:,.2f}</p>
+        <p><strong>Total Cost:</strong> ${result['Total Cost']:,.2f}</p>
+        <p><strong>Cost per lb:</strong> ${result['Cost per lb']:,.4f}</p>
+        <p><strong>Upper Bound (MAE):</strong> ${result['Upper Bound MAE']:,.2f}</p>
+        <p><strong>Upper Bound (RMSE):</strong> ${result['Upper Bound RMSE']:,.2f}</p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        result = forecast_cost_per_lb_mile(agency, region_label, hh, weight, donated, distance)
-        if result is None:
-            st.error("⚠️ No model available for selected combination.")
-        else:
-            pred_cost_per_lb_mile, total_cost = result
-            st.markdown(f"""
-                <div style='text-align: center;'>
-                    <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 350px;">
-                        <h4 style="color: #3c763d; margin-top: 0;">Calculation Completed</h4>
-                        <p><strong style='color: #000;'>Agency:</strong> <span style='color:#000'>{agency}</span></p>
-                        <p><strong style='color: #000;'>Region:</strong> <span style='color:#000'>{region_label}</span></p>
-                        <p><strong style='color: #000;'>Weight:</strong> <span style='color:#000'>{weight:.1f} lbs</span></p>
-                        <p><strong style='color: #000;'>Households:</strong> <span style='color:#000'>{hh}</span></p>
-                        <p><strong style='color: #000;'>% Donated:</strong> <span style='color:#000'>{donated:.1f}%</span></p>
-                        <p><strong style='color: #000;'>Distance:</strong> <span style='color:#000'>{distance} miles</span></p>
-                        <hr style="border: none; border-top: 1px solid #ccc;">
-                        <p style="text-align: center; color: #F7941D; font-size: 16px; font-weight: bold;">
-                            Cost per lb per mile: ${pred_cost_per_lb_mile:.4f}
-                        </p>
-                        <p style="text-align: center; color: #3c763d; font-size: 16px; font-weight: bold;">
-                            Total cost of delivery: ${total_cost:,.2f}
-                        </p>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+        st.error("Prediction failed. Check inputs or try again.")

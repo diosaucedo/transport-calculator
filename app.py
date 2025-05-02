@@ -1,4 +1,5 @@
-# app.py (Streamlit version of your calculator)
+# app.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -18,7 +19,7 @@ TRANSPORT_RATE = 0.02
 FSD_GREEN = "#6BA539"
 FSD_ORANGE = "#F7941D"
 
-# === Logo ===
+# === Load Logo ===
 with open("FSD LOGO.png", "rb") as f:
     encoded_image = base64.b64encode(f.read()).decode("utf-8")
 logo_path = f"data:image/png;base64,{encoded_image}"
@@ -27,12 +28,7 @@ logo_path = f"data:image/png;base64,{encoded_image}"
 @st.cache_data
 def load_data():
     df = pd.read_excel("Final_Quarterly.xlsx")
-    df = df[df["Cost"] > 1].copy()
-
-    df['Estimated_Donated_Weight'] = df['Weight'] * df['Estimated_Donated_%']
-    df['Estimated_Purchased_Weight'] = df['Weight'] - df['Estimated_Donated_Weight']
     df['Total_Weight'] = df['Estimated_Donated_Weight'] + df['Estimated_Purchased_Weight']
-
     df['Weight_Tier'] = 'Unassigned'
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] < 8000), 'Weight_Tier'] = 'Low'
     df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] >= 8000) & (df['Total_Weight'] <= 20000), 'Weight_Tier'] = 'Mid'
@@ -42,13 +38,12 @@ def load_data():
     df.loc[(df['PROGRAM'] == 'MP') & (df['Total_Weight'] >= 6000), 'Weight_Tier'] = 'High'
     df.loc[(df['PROGRAM'] == 'SP') & (df['Total_Weight'] < 2000), 'Weight_Tier'] = 'Low'
     df.loc[(df['PROGRAM'] == 'SP') & (df['Total_Weight'] >= 2000), 'Weight_Tier'] = 'High'
-    df.loc[(df['PROGRAM'] == 'PP') & (df['Total_Weight'] < 150000), 'Weight_Tier'] = 'All'
-
+    df.loc[(df['PROGRAM'] == 'PP'), 'Weight_Tier'] = 'All'
     return df[df['Weight_Tier'] != 'Unassigned']
 
-# === Train Models ===
+# === Train Model ===
 @st.cache_resource
-def train_models(df):
+def train_model(df):
     model_dict = {}
     scores = []
     features = ['Region', 'PROGRAM', 'Quarter', 'hh', 'Estimated_Donated_Weight', 'Estimated_Purchased_Weight']
@@ -65,32 +60,28 @@ def train_models(df):
         X = X[mask]
         y = y[mask]
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         pre = ColumnTransformer([
             ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), cat_cols),
             ('num', 'passthrough', num_cols)
         ])
         pipe = Pipeline([
-            ('preprocessor', pre),
-            ('regressor', xgb.XGBRegressor(objective='reg:squarederror', n_estimators=200))
+            ('pre', pre),
+            ('xgb', xgb.XGBRegressor(objective='reg:squarederror', n_estimators=200))
         ])
-        pipe.fit(X_train, y_train)
-
-        y_pred = np.expm1(pipe.predict(X_test))
-        y_actual = np.expm1(y_test)
-
+        pipe.fit(X, y)
+        y_pred = np.expm1(pipe.predict(X))
+        y_true = np.expm1(y)
         model_dict[(program, tier)] = pipe
         scores.append({
             'Program': program,
             'Weight_Tier': tier,
-            'MAE': mean_absolute_error(y_actual, y_pred),
-            'RMSE': np.sqrt(mean_squared_error(y_actual, y_pred))
+            'MAE': mean_absolute_error(y_true, y_pred),
+            'RMSE': np.sqrt(mean_squared_error(y_true, y_pred))
         })
-
     return model_dict, pd.DataFrame(scores)
 
 # === Predict ===
-def predict(model_dict, score_df, program, region, hh, weight, donated_pct, miles):
+def predict(model_dict, scores, program, region, hh, weight, donated_pct, miles):
     q_weight = weight / 4
     q_donated = q_weight * (donated_pct / 100.0)
     q_purchased = q_weight * (1 - (donated_pct / 100.0))
@@ -110,7 +101,7 @@ def predict(model_dict, score_df, program, region, hh, weight, donated_pct, mile
     if not model:
         return None
 
-    row = score_df[(score_df['Program'] == program) & (score_df['Weight_Tier'] == tier)]
+    row = scores[(scores['Program'] == program) & (scores['Weight_Tier'] == tier)]
     if row.empty:
         return None
 
@@ -131,6 +122,7 @@ def predict(model_dict, score_df, program, region, hh, weight, donated_pct, mile
     fixed = weight * FIXED_COST_PER_LB
     transport = weight * miles * TRANSPORT_RATE
     total = base_cost + fixed + transport
+
     return {
         'Quarterly Cost': round(pred, 2),
         'Base Annual Cost': round(base_cost, 2),
@@ -143,9 +135,9 @@ def predict(model_dict, score_df, program, region, hh, weight, donated_pct, mile
     }
 
 # === UI ===
-st.set_page_config(page_title="FSD Cost Estimator", layout="centered")
-st.image("FSD LOGO.png", width=180)
-st.title("Cost Estimator")
+st.set_page_config(page_title="Cost Estimator", layout="centered")
+st.markdown(f'<div style="text-align:center;"><img src="data:image/png;base64,{encoded_image}" style="height:110px; margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center;'>Cost Estimator</h2>", unsafe_allow_html=True)
 
 region_options = {
     'North Coastal (27.7 mi)': 27.7,
@@ -156,29 +148,19 @@ region_options = {
 }
 
 with st.form("estimator"):
-    st.markdown("<h4>1. Enter total weight (lbs):</h4>", unsafe_allow_html=True)
-    weight = st.number_input("", min_value=1.0, value=2000.0)
-
-    st.markdown("<h4>2. Select delivery region:</h4>", unsafe_allow_html=True)
-    region_label = st.selectbox("", list(region_options.keys()))
-
-    st.markdown("<h4>3. Select agency/program:</h4>", unsafe_allow_html=True)
-    program = st.selectbox("", ["AGENCY", "SP", "BP", "MP", "PP"])
-
-    st.markdown("<h4>4. Enter number of households:</h4>", unsafe_allow_html=True)
-    hh = st.number_input("", min_value=1, value=100)
-
-    st.markdown("<h4>5. Estimated % food donated:</h4>", unsafe_allow_html=True)
-    donated_pct = st.slider("", 0, 100, 50)
-
+    weight = st.number_input("1. Enter total weight (lbs):", min_value=1.0, value=2000.0)
+    region_label = st.selectbox("2. Select delivery region:", list(region_options.keys()))
+    program = st.selectbox("3. Select agency/program:", ["AGENCY", "SP", "BP", "MP", "PP"])
+    hh = st.number_input("4. Enter number of households:", min_value=1, value=100)
+    donated_pct = st.slider("5. Estimated % food donated:", 0, 100, 12)
     submitted = st.form_submit_button("Estimate Cost")
 
 if submitted:
-    with st.spinner("Loading models and calculating..."):
+    with st.spinner("Calculating..."):
         df = load_data()
-        models, scores = train_models(df)
+        model_dict, scores = train_model(df)
         miles = region_options[region_label]
-        result = predict(models, scores, program, region_label, hh, weight, donated_pct, miles)
+        result = predict(model_dict, scores, program, region_label, hh, weight, donated_pct, miles)
 
     if result:
         st.markdown(f"""
@@ -190,7 +172,7 @@ if submitted:
         <p><strong>Households:</strong> {hh}</p>
         <p><strong>Total Weight:</strong> {weight:.1f} lbs</p>
         <p><strong>Distance:</strong> {miles} miles</p>
-        <hr>
+        <hr style="border: none; border-top: 1px solid #ccc;">
         <h4 style='color: {FSD_ORANGE};'>Estimated Costs</h4>
         <p><strong>Quarterly Cost:</strong> ${result['Quarterly Cost']:,.2f}</p>
         <p><strong>Base Annual Cost:</strong> ${result['Base Annual Cost']:,.2f}</p>
@@ -203,4 +185,4 @@ if submitted:
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.error("Prediction failed. Please check inputs.")
+        st.error("Prediction failed. Check inputs or data.")

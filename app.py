@@ -1,4 +1,4 @@
-# app.py
+# === Step 1: Import Libraries ===
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -94,6 +94,11 @@ def train_models(df):
 
     return model_dict, pd.DataFrame(scores)
 
+@st.cache_resource
+def get_trained_models():
+    df = load_data()
+    return train_models(df)
+
 # === Predict ===
 def predict(model_dict, score_df, program, region, hh, weight, donated_pct, miles):
     q_weight = weight / 4
@@ -161,7 +166,7 @@ region_options = {
 }
 
 with st.form("estimator"):
-    weight = st.number_input("1. Enter total weight (lbs):", min_value=1.0, value=10000.0)
+    weight = st.number_input("1. Enter total weight (lbs):", min_value=1.0, value=2000.0)
     region_label = st.selectbox("2. Select delivery region:", list(region_options.keys()))
     program = st.selectbox("3. Select agency/program:", ["AGENCY", "SP", "BP", "MP", "PP"])
     hh = st.number_input("4. Enter number of households:", min_value=1, value=100)
@@ -170,8 +175,7 @@ with st.form("estimator"):
 
 if submitted:
     with st.spinner("Loading models and calculating..."):
-        df = load_data()
-        models, scores = train_models(df)
+        models, scores = get_trained_models()
         miles = region_options[region_label]
         result = predict(models, scores, program, region_label, hh, weight, donated_pct, miles)
 
@@ -179,22 +183,22 @@ if submitted:
         st.markdown(f"""
         <div style='background-color: #fff; padding: 20px; border-radius: 8px; max-width: 500px; margin: auto;'>
         <h4 style='color: {FSD_GREEN};'>User Inputs</h4>
-        <p style='color:black'><strong>Region:</strong> {region_label}</p>
-        <p style='color:black'><strong>Program:</strong> {program}</p>
-        <p style='color:black'><strong>% Donated:</strong> {donated_pct}%</p>
-        <p style='color:black'><strong>Households:</strong> {hh}</p>
-        <p style='color:black'><strong>Total Weight:</strong> {weight} lbs</p>
-        <p style='color:black'><strong>Distance:</strong> {miles} miles</p>
+        <p style='color: black;'><strong>Region:</strong> {region_label}</p>
+        <p style='color: black;'><strong>Program:</strong> {program}</p>
+        <p style='color: black;'><strong>% Donated:</strong> {donated_pct}%</p>
+        <p style='color: black;'><strong>Households:</strong> {hh}</p>
+        <p style='color: black;'><strong>Total Weight:</strong> {weight} lbs</p>
+        <p style='color: black;'><strong>Distance:</strong> {miles} miles</p>
         <hr>
         <h4 style='color: {FSD_ORANGE};'>Estimated Costs</h4>
-        <p style='color:black'><strong>Quarterly Cost:</strong> ${result['Quarterly Cost']:,.2f}</p>
-        <p style='color:black'><strong>Base Annual Cost:</strong> ${result['Base Annual Cost']:,.2f}</p>
-        <p style='color:black'><strong>Fixed Cost:</strong> ${result['Fixed Cost']:,.2f}</p>
-        <p style='color:black'><strong>Transport Cost:</strong> ${result['Transport Cost']:,.2f}</p>
-        <p style='color:black'><strong>Total Cost:</strong> ${result['Total Cost']:,.2f}</p>
-        <p style='color:black'><strong>Cost per lb:</strong> ${result['Cost per lb']:,.4f}</p>
-        <p style='color:black'><strong>Upper Bound (MAE):</strong> ${result['Upper Bound MAE']:,.2f}</p>
-        <p style='color:black'><strong>Upper Bound (RMSE):</strong> ${result['Upper Bound RMSE']:,.2f}</p>
+        <p style='color: black;'><strong>Quarterly Cost:</strong> ${result['Quarterly Cost']:,.2f}</p>
+        <p style='color: black;'><strong>Base Annual Cost:</strong> ${result['Base Annual Cost']:,.2f}</p>
+        <p style='color: black;'><strong>Fixed Cost:</strong> ${result['Fixed Cost']:,.2f}</p>
+        <p style='color: black;'><strong>Transport Cost:</strong> ${result['Transport Cost']:,.2f}</p>
+        <p style='color: black;'><strong>Total Cost:</strong> ${result['Total Cost']:,.2f}</p>
+        <p style='color: black;'><strong>Cost per lb:</strong> ${result['Cost per lb']:,.4f}</p>
+        <p style='color: black;'><strong>Upper Bound (MAE):</strong> ${result['Upper Bound MAE']:,.2f}</p>
+        <p style='color: black;'><strong>Upper Bound (RMSE):</strong> ${result['Upper Bound RMSE']:,.2f}</p>
         </div>
         """, unsafe_allow_html=True)
     else:

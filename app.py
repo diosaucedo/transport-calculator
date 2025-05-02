@@ -150,7 +150,7 @@ def predict(model_dict, score_df, program, region, hh, weight, donated_pct, mile
 # === UI ===
 st.set_page_config(page_title="FSD Cost Estimator", layout="centered")
 st.image("FSD LOGO.png", width=160)
-st.title("Annual Food Program Cost Estimator")
+st.title("Cost Estimator")
 
 region_options = {
     'North Coastal (27.7 mi)': 27.7,
@@ -161,11 +161,11 @@ region_options = {
 }
 
 with st.form("estimator"):
-    region_label = st.selectbox("Region:", list(region_options.keys()))
-    program = st.selectbox("Program:", ["AGENCY", "SP", "BP", "MP", "PP"])
-    donated_pct = st.slider("Estimated % Donated", 0, 100, 50)
-    hh = st.number_input("Households Served", min_value=1, value=100)
-    weight = st.number_input("Total Annual Weight (lbs)", min_value=1.0, value=10000.0)
+    weight = st.number_input("1. Enter total weight (lbs):", min_value=1.0, value=10000.0)
+    region_label = st.selectbox("2. Select delivery region:", list(region_options.keys()))
+    program = st.selectbox("3. Select agency/program:", ["AGENCY", "SP", "BP", "MP", "PP"])
+    hh = st.number_input("4. Enter number of households:", min_value=1, value=100)
+    donated_pct = st.slider("5. Estimated % food donated:", 0, 100, 50)
     submitted = st.form_submit_button("Estimate Cost")
 
 if submitted:
@@ -179,22 +179,22 @@ if submitted:
         st.markdown(f"""
         <div style='background-color: #fff; padding: 20px; border-radius: 8px; max-width: 500px; margin: auto;'>
         <h4 style='color: {FSD_GREEN};'>User Inputs</h4>
-        <p><strong>Region:</strong> {region_label}</p>
-        <p><strong>Program:</strong> {program}</p>
-        <p><strong>% Donated:</strong> {donated_pct}%</p>
-        <p><strong>Households:</strong> {hh}</p>
-        <p><strong>Total Weight:</strong> {weight} lbs</p>
-        <p><strong>Distance:</strong> {miles} miles</p>
+        <p style='color:black'><strong>Region:</strong> {region_label}</p>
+        <p style='color:black'><strong>Program:</strong> {program}</p>
+        <p style='color:black'><strong>% Donated:</strong> {donated_pct}%</p>
+        <p style='color:black'><strong>Households:</strong> {hh}</p>
+        <p style='color:black'><strong>Total Weight:</strong> {weight} lbs</p>
+        <p style='color:black'><strong>Distance:</strong> {miles} miles</p>
         <hr>
         <h4 style='color: {FSD_ORANGE};'>Estimated Costs</h4>
-        <p><strong>Quarterly Cost:</strong> ${result['Quarterly Cost']:,.2f}</p>
-        <p><strong>Base Annual Cost:</strong> ${result['Base Annual Cost']:,.2f}</p>
-        <p><strong>Fixed Cost:</strong> ${result['Fixed Cost']:,.2f}</p>
-        <p><strong>Transport Cost:</strong> ${result['Transport Cost']:,.2f}</p>
-        <p><strong>Total Cost:</strong> ${result['Total Cost']:,.2f}</p>
-        <p><strong>Cost per lb:</strong> ${result['Cost per lb']:,.4f}</p>
-        <p><strong>Upper Bound (MAE):</strong> ${result['Upper Bound MAE']:,.2f}</p>
-        <p><strong>Upper Bound (RMSE):</strong> ${result['Upper Bound RMSE']:,.2f}</p>
+        <p style='color:black'><strong>Quarterly Cost:</strong> ${result['Quarterly Cost']:,.2f}</p>
+        <p style='color:black'><strong>Base Annual Cost:</strong> ${result['Base Annual Cost']:,.2f}</p>
+        <p style='color:black'><strong>Fixed Cost:</strong> ${result['Fixed Cost']:,.2f}</p>
+        <p style='color:black'><strong>Transport Cost:</strong> ${result['Transport Cost']:,.2f}</p>
+        <p style='color:black'><strong>Total Cost:</strong> ${result['Total Cost']:,.2f}</p>
+        <p style='color:black'><strong>Cost per lb:</strong> ${result['Cost per lb']:,.4f}</p>
+        <p style='color:black'><strong>Upper Bound (MAE):</strong> ${result['Upper Bound MAE']:,.2f}</p>
+        <p style='color:black'><strong>Upper Bound (RMSE):</strong> ${result['Upper Bound RMSE']:,.2f}</p>
         </div>
         """, unsafe_allow_html=True)
     else:

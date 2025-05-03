@@ -19,17 +19,38 @@ TRANSPORT_RATE = 0.02
 FSD_GREEN = "#6BA539"
 FSD_ORANGE = "#F7941D"
 
-# === Load Logo ===
+# === Logo ===
 with open("FSD LOGO.png", "rb") as f:
     encoded_image = base64.b64encode(f.read()).decode("utf-8")
 logo_html = f"<img src='data:image/png;base64,{encoded_image}' style='height: 110px; margin-bottom: 20px;'>"
 
-# === Load DataFrame (df_filtered) here ===
-# You must ensure df_filtered is loaded with all columns from your model setup code.
+# === Load data ===
+merged_final_df = pd.read_excel("merged_final.xlsx")
+quarter_df = pd.read_excel("Final_Quarterly.xlsx")
 
-# Recalculate Total_Weight and assign tiers
+merged_df = merged_final_df[['Location', 'PROGRAM', '% Donated (per location)']]
+program_means = merged_df.groupby('PROGRAM')['% Donated (per location)'].mean().reset_index()
+program_means.rename(columns={'% Donated (per location)': 'Program_Mean_Donated_%'}, inplace=True)
+
+quarter_df = quarter_df.merge(merged_df, on=['Location', 'PROGRAM'], how='left')
+quarter_df = quarter_df.merge(program_means, on='PROGRAM', how='left')
+
+quarter_df['Estimated_Donated_%'] = (
+    0.8 * quarter_df['% Donated (per location)'] +
+    0.2 * quarter_df['Program_Mean_Donated_%']
+)
+
+quarter_df['Estimated_Donated_Weight'] = quarter_df['Estimated_Donated_%'] * quarter_df['Weight']
+quarter_df['Estimated_Purchased_Weight'] = quarter_df['Weight'] - quarter_df['Estimated_Donated_Weight']
+
+programs_to_include = ['AGENCY', 'SP', 'BP', 'MP', 'PP']
+quarter_df_filtered = quarter_df[quarter_df['PROGRAM'].isin(programs_to_include)].copy()
+df_filtered = quarter_df_filtered[quarter_df_filtered['Cost'] > 1].copy()
+
+# === Assign weight tiers ===
 df_filtered['Total_Weight'] = df_filtered['Estimated_Donated_Weight'] + df_filtered['Estimated_Purchased_Weight']
 df_filtered['Weight_Tier'] = 'Unassigned'
+
 df_filtered.loc[(df_filtered['PROGRAM'] == 'AGENCY') & (df_filtered['Total_Weight'] < 8000), 'Weight_Tier'] = 'Low'
 df_filtered.loc[(df_filtered['PROGRAM'] == 'AGENCY') & (df_filtered['Total_Weight'] >= 8000) & (df_filtered['Total_Weight'] <= 20000), 'Weight_Tier'] = 'Mid'
 df_filtered.loc[(df_filtered['PROGRAM'] == 'AGENCY') & (df_filtered['Total_Weight'] > 20000) & (df_filtered['Total_Weight'] < 150000), 'Weight_Tier'] = 'High'
@@ -41,7 +62,7 @@ df_filtered.loc[(df_filtered['PROGRAM'] == 'SP') & (df_filtered['Total_Weight'] 
 df_filtered.loc[(df_filtered['PROGRAM'] == 'PP') & (df_filtered['Total_Weight'] < 150000), 'Weight_Tier'] = 'All'
 df_filtered = df_filtered[df_filtered['Weight_Tier'] != 'Unassigned']
 
-# === Train Models ===
+# === Train models ===
 features = ['Region', 'PROGRAM', 'Quarter', 'hh', 'Estimated_Donated_Weight', 'Estimated_Purchased_Weight']
 target = 'Cost'
 cat_cols = ['Region', 'PROGRAM', 'Quarter']
@@ -84,6 +105,7 @@ for (program, tier), subset in df_filtered.groupby(['PROGRAM', 'Weight_Tier']):
 
 summary_df = pd.DataFrame(score_summary)
 
+# === Prediction Function ===
 def predict_total_annual_cost(program, region, hh, total_weight, donated_pct, miles):
     donated_ratio = donated_pct / 100.0
     quarterly_total = total_weight / 4

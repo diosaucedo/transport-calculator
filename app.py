@@ -11,6 +11,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import base64
 
+# ✅ Must be first Streamlit call
+st.set_page_config(page_title="Cost Estimator", layout="centered")
+
 # === Constants ===
 TOTAL_FIXED_COST = 13_044_792
 TOTAL_ANNUAL_WEIGHT = 17_562_606
@@ -24,7 +27,7 @@ with open("FSD LOGO.png", "rb") as f:
     encoded_image = base64.b64encode(f.read()).decode("utf-8")
 logo_html = f"<img src='data:image/png;base64,{encoded_image}' style='height: 110px; margin-bottom: 20px;'>"
 
-# === Cached model training ===
+# === Cached Model Training ===
 @st.cache_resource
 def load_and_train_models():
     merged_final_df = pd.read_excel("merged_final.xlsx")
@@ -164,7 +167,6 @@ def predict_total_annual_cost(program, region, hh, total_weight, donated_pct, mi
     }
 
 # === Streamlit UI ===
-st.set_page_config(page_title="Cost Estimator", layout="centered")
 st.markdown(f"<div style='text-align: center;'>{logo_html}</div>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align: center; color: white;'>Cost Estimator</h2>", unsafe_allow_html=True)
 

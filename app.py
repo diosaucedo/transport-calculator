@@ -24,86 +24,88 @@ with open("FSD LOGO.png", "rb") as f:
     encoded_image = base64.b64encode(f.read()).decode("utf-8")
 logo_html = f"<img src='data:image/png;base64,{encoded_image}' style='height: 110px; margin-bottom: 20px;'>"
 
-# === Load data ===
-merged_final_df = pd.read_excel("merged_final.xlsx")
-quarter_df = pd.read_excel("Final_Quarterly.xlsx")
+# === Cached model training ===
+@st.cache_resource
+def load_and_train_models():
+    merged_final_df = pd.read_excel("merged_final.xlsx")
+    quarter_df = pd.read_excel("Final_Quarterly.xlsx")
 
-merged_df = merged_final_df[['Location', 'PROGRAM', '% Donated (per location)']]
-program_means = merged_df.groupby('PROGRAM')['% Donated (per location)'].mean().reset_index()
-program_means.rename(columns={'% Donated (per location)': 'Program_Mean_Donated_%'}, inplace=True)
+    merged_df = merged_final_df[['Location', 'PROGRAM', '% Donated (per location)']]
+    program_means = merged_df.groupby('PROGRAM')['% Donated (per location)'].mean().reset_index()
+    program_means.rename(columns={'% Donated (per location)': 'Program_Mean_Donated_%'}, inplace=True)
 
-quarter_df = quarter_df.merge(merged_df, on=['Location', 'PROGRAM'], how='left')
-quarter_df = quarter_df.merge(program_means, on='PROGRAM', how='left')
+    quarter_df = quarter_df.merge(merged_df, on=['Location', 'PROGRAM'], how='left')
+    quarter_df = quarter_df.merge(program_means, on='PROGRAM', how='left')
 
-quarter_df['Estimated_Donated_%'] = (
-    0.8 * quarter_df['% Donated (per location)'] +
-    0.2 * quarter_df['Program_Mean_Donated_%']
-)
+    quarter_df['Estimated_Donated_%'] = (
+        0.8 * quarter_df['% Donated (per location)'] +
+        0.2 * quarter_df['Program_Mean_Donated_%']
+    )
+    quarter_df['Estimated_Donated_Weight'] = quarter_df['Estimated_Donated_%'] * quarter_df['Weight']
+    quarter_df['Estimated_Purchased_Weight'] = quarter_df['Weight'] - quarter_df['Estimated_Donated_Weight']
 
-quarter_df['Estimated_Donated_Weight'] = quarter_df['Estimated_Donated_%'] * quarter_df['Weight']
-quarter_df['Estimated_Purchased_Weight'] = quarter_df['Weight'] - quarter_df['Estimated_Donated_Weight']
+    programs_to_include = ['AGENCY', 'SP', 'BP', 'MP', 'PP']
+    df = quarter_df[quarter_df['PROGRAM'].isin(programs_to_include)].copy()
+    df = df[df['Cost'] > 1].copy()
 
-programs_to_include = ['AGENCY', 'SP', 'BP', 'MP', 'PP']
-quarter_df_filtered = quarter_df[quarter_df['PROGRAM'].isin(programs_to_include)].copy()
-df_filtered = quarter_df_filtered[quarter_df_filtered['Cost'] > 1].copy()
+    df['Total_Weight'] = df['Estimated_Donated_Weight'] + df['Estimated_Purchased_Weight']
+    df['Weight_Tier'] = 'Unassigned'
+    df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] < 8000), 'Weight_Tier'] = 'Low'
+    df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] >= 8000) & (df['Total_Weight'] <= 20000), 'Weight_Tier'] = 'Mid'
+    df.loc[(df['PROGRAM'] == 'AGENCY') & (df['Total_Weight'] > 20000) & (df['Total_Weight'] < 150000), 'Weight_Tier'] = 'High'
+    df.loc[(df['PROGRAM'] == 'BP') & (df['Total_Weight'] < 7311), 'Weight_Tier'] = 'All'
+    df.loc[(df['PROGRAM'] == 'MP') & (df['Total_Weight'] < 6000), 'Weight_Tier'] = 'Low'
+    df.loc[(df['PROGRAM'] == 'MP') & (df['Total_Weight'] >= 6000) & (df['Total_Weight'] < 60865), 'Weight_Tier'] = 'High'
+    df.loc[(df['PROGRAM'] == 'SP') & (df['Total_Weight'] < 2000), 'Weight_Tier'] = 'Low'
+    df.loc[(df['PROGRAM'] == 'SP') & (df['Total_Weight'] >= 2000) & (df['Total_Weight'] < 43175.75), 'Weight_Tier'] = 'High'
+    df.loc[(df['PROGRAM'] == 'PP') & (df['Total_Weight'] < 150000), 'Weight_Tier'] = 'All'
+    df = df[df['Weight_Tier'] != 'Unassigned']
 
-# === Assign weight tiers ===
-df_filtered['Total_Weight'] = df_filtered['Estimated_Donated_Weight'] + df_filtered['Estimated_Purchased_Weight']
-df_filtered['Weight_Tier'] = 'Unassigned'
+    features = ['Region', 'PROGRAM', 'Quarter', 'hh', 'Estimated_Donated_Weight', 'Estimated_Purchased_Weight']
+    target = 'Cost'
+    cat_cols = ['Region', 'PROGRAM', 'Quarter']
+    num_cols = [col for col in features if col not in cat_cols]
 
-df_filtered.loc[(df_filtered['PROGRAM'] == 'AGENCY') & (df_filtered['Total_Weight'] < 8000), 'Weight_Tier'] = 'Low'
-df_filtered.loc[(df_filtered['PROGRAM'] == 'AGENCY') & (df_filtered['Total_Weight'] >= 8000) & (df_filtered['Total_Weight'] <= 20000), 'Weight_Tier'] = 'Mid'
-df_filtered.loc[(df_filtered['PROGRAM'] == 'AGENCY') & (df_filtered['Total_Weight'] > 20000) & (df_filtered['Total_Weight'] < 150000), 'Weight_Tier'] = 'High'
-df_filtered.loc[(df_filtered['PROGRAM'] == 'BP') & (df_filtered['Total_Weight'] < 7311), 'Weight_Tier'] = 'All'
-df_filtered.loc[(df_filtered['PROGRAM'] == 'MP') & (df_filtered['Total_Weight'] < 6000), 'Weight_Tier'] = 'Low'
-df_filtered.loc[(df_filtered['PROGRAM'] == 'MP') & (df_filtered['Total_Weight'] >= 6000) & (df_filtered['Total_Weight'] < 60865), 'Weight_Tier'] = 'High'
-df_filtered.loc[(df_filtered['PROGRAM'] == 'SP') & (df_filtered['Total_Weight'] < 2000), 'Weight_Tier'] = 'Low'
-df_filtered.loc[(df_filtered['PROGRAM'] == 'SP') & (df_filtered['Total_Weight'] >= 2000) & (df_filtered['Total_Weight'] < 43175.75), 'Weight_Tier'] = 'High'
-df_filtered.loc[(df_filtered['PROGRAM'] == 'PP') & (df_filtered['Total_Weight'] < 150000), 'Weight_Tier'] = 'All'
-df_filtered = df_filtered[df_filtered['Weight_Tier'] != 'Unassigned']
+    model_dict = {}
+    score_summary = []
 
-# === Train models ===
-features = ['Region', 'PROGRAM', 'Quarter', 'hh', 'Estimated_Donated_Weight', 'Estimated_Purchased_Weight']
-target = 'Cost'
-cat_cols = ['Region', 'PROGRAM', 'Quarter']
-num_cols = [col for col in features if col not in cat_cols]
+    for (program, tier), subset in df.groupby(['PROGRAM', 'Weight_Tier']):
+        if len(subset) < 20:
+            continue
+        X = subset[features]
+        y = np.log1p(subset[target])
+        mask = (~y.isna()) & (~np.isinf(y))
+        X = X[mask]
+        y = y[mask]
 
-model_dict = {}
-score_summary = []
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-for (program, tier), subset in df_filtered.groupby(['PROGRAM', 'Weight_Tier']):
-    if len(subset) < 20:
-        continue
-    X = subset[features]
-    y = np.log1p(subset[target])
-    mask = (~y.isna()) & (~np.isinf(y))
-    X = X[mask]
-    y = y[mask]
+        preprocessor = ColumnTransformer([
+            ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), cat_cols),
+            ('num', 'passthrough', num_cols)
+        ])
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        pipeline = Pipeline([
+            ('preprocessor', preprocessor),
+            ('regressor', xgb.XGBRegressor(objective='reg:squarederror', n_estimators=200, max_depth=5, learning_rate=0.1))
+        ])
 
-    preprocessor = ColumnTransformer([
-        ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), cat_cols),
-        ('num', 'passthrough', num_cols)
-    ])
+        pipeline.fit(X_train, y_train)
+        model_dict[(program, tier)] = pipeline
+        y_pred = np.expm1(pipeline.predict(X_test))
+        y_true = np.expm1(y_test)
+        score_summary.append({
+            'Program': program,
+            'Weight_Tier': tier,
+            'RMSE': round(np.sqrt(mean_squared_error(y_true, y_pred)), 2),
+            'MAE': round(mean_absolute_error(y_true, y_pred), 2)
+        })
 
-    pipeline = Pipeline([
-        ('preprocessor', preprocessor),
-        ('regressor', xgb.XGBRegressor(objective='reg:squarederror', n_estimators=200, max_depth=5, learning_rate=0.1))
-    ])
+    summary_df = pd.DataFrame(score_summary)
+    return model_dict, summary_df
 
-    pipeline.fit(X_train, y_train)
-    model_dict[(program, tier)] = pipeline
-    y_pred = np.expm1(pipeline.predict(X_test))
-    y_true = np.expm1(y_test)
-    score_summary.append({
-        'Program': program,
-        'Weight_Tier': tier,
-        'RMSE': round(np.sqrt(mean_squared_error(y_true, y_pred)), 2),
-        'MAE': round(mean_absolute_error(y_true, y_pred), 2)
-    })
-
-summary_df = pd.DataFrame(score_summary)
+# === Load models (cached) ===
+model_dict, summary_df = load_and_train_models()
 
 # === Prediction Function ===
 def predict_total_annual_cost(program, region, hh, total_weight, donated_pct, miles):

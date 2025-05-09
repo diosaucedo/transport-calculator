@@ -43,38 +43,35 @@ with st.form("calculator_form"):
     purchased_lb = st.number_input("4. How many lbs of purchased per HH?", min_value=0.0, value=float(lbs_per_hh[program]['purchased']))
     donated_lb = st.number_input("5. How many lbs of donated per HH?", min_value=0.0, value=float(lbs_per_hh[program]['donated']))
     miles = st.number_input("6. How many miles will this delivery travel?", min_value=0.0, value=30.0)
-    
+
     submitted = st.form_submit_button("Calculate & Estimate")
 
 if submitted:
-    # Fetch cost values
+    # === Look up costs
     row = cost_estimates[cost_estimates['PROGRAM'] == program].iloc[0]
     produce_cost = row['estimated_produce_cost_per_lb']
     purchased_cost = row['estimated_purchased_cost_per_lb']
 
-    # Totals
+    # === Calculate weights
     prod_total = produce_lb * hh
     purch_total = purchased_lb * hh
     don_total = donated_lb * hh
     total_lbs = prod_total + purch_total + don_total
 
-    # Costs
-    base_cost = (
-        prod_total * produce_cost +
-        purch_total * purchased_cost +
-        don_total * donated_cost
-    )
+    # === Calculate costs
+    base_cost = prod_total * produce_cost + purch_total * purchased_cost + don_total * donated_cost
     fixed_cost = total_lbs * FIXED_COST_PER_LB
     transport_cost = total_lbs * miles * TRANSPORT_COST_PER_LB_PER_MILE
     delivery_cost = base_cost + transport_cost
     total_cost = base_cost + fixed_cost + transport_cost
 
+    # === Per HH itemized cost
     prod_cost_hh = produce_lb * produce_cost
     purch_cost_hh = purchased_lb * purchased_cost
     don_cost_hh = donated_lb * donated_cost
 
-    # === Output Formatting ===
-    st.markdown(f"""
+    # === Output HTML
+    html_output = f"""
     <div style='text-align: center;'>
         <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">
             <h3 style="color: #3c763d; margin-top: 0; font-size: 22px;">Calculation Completed</h3>
@@ -110,4 +107,5 @@ if submitted:
             <p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(html_output, unsafe_allow_html=True)

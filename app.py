@@ -76,7 +76,7 @@ if st.button("Calculate & Estimate"):
     # === Styled Output ===
     st.markdown(f"""
     <div style='text-align: center;'>
-        <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">
+        <div style="background-color: #ffffff; color: #000000; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">
             <h3 style="color: #3c763d; margin-top: 0; font-size: 22px;">Calculation Completed</h3>
 
             <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">User Inputs</h4>

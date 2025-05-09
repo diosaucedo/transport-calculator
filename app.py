@@ -34,7 +34,7 @@ lbs_per_hh = {
 
 # === Layout ===
 st.markdown(f"<div style='text-align: center;'><img src='{logo_path}' style='height: 140px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
-st.title("Delivery Cost Calculator")
+st.title("Cost Calculator")
 
 with st.form("calculator_form"):
     program = st.selectbox("1. Which program is this?", list(lbs_per_hh.keys()))
@@ -72,7 +72,7 @@ if submitted:
 
     # === Render output with Streamlit-safe markdown
     st.markdown(f"""
-### ✅ Calculation Completed
+### Calculation Completed
 
 #### <strong>User Inputs</strong>
 <p><strong>Program:</strong> {program}</p>

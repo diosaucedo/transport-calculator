@@ -1,14 +1,6 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
 import base64
-
-# === Load logo ===
-def get_base64_logo(path):
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
-
-logo_path = get_base64_logo("FSD LOGO.png")
+import pandas as pd
 
 # === Constants ===
 FIXED_COST_PER_LB = 13044792 / 17562606  # ≈ 0.7427
@@ -21,31 +13,44 @@ cost_per_lb_fixed = {
     'purchased_bp': 1.27
 }
 
-# === Default lb per HH by program ===
 lbs_per_hh = {
-    'AGENCY': {'produce': 10, 'purchased': 15, 'donated': 5},
-    'BP': {'produce': 12, 'purchased': 18, 'donated': 3}
+    'AGENCY': {'produce': 15.2, 'purchased': 9.1, 'donated': 1.2},
+    'BP': {'produce': 10.5, 'purchased': 6.0, 'donated': 2.3}
 }
 
-# === UI Elements ===
-st.markdown(f"<div style='text-align: center;'><img src='data:image/png;base64,{logo_path}' style='height:80px; margin-bottom:20px;'></div>", unsafe_allow_html=True)
-st.title("FSD Delivery Cost Estimator")
+# === Logo ===
+def load_logo():
+    with open("FSD LOGO.png", "rb") as f:
+        encoded = base64.b64encode(f.read()).decode()
+    return f"data:image/png;base64,{encoded}"
 
-program = st.selectbox("1. Which program is this?", options=list(lbs_per_hh.keys()))
-hh = st.number_input("2. How many households are served?", min_value=1, value=350)
-prod_lb = st.number_input("3. How many lbs of produce per HH?", min_value=0.0, value=float(lbs_per_hh[program]['produce']))
-purch_lb = st.number_input("4. How many lbs of purchased per HH?", min_value=0.0, value=float(lbs_per_hh[program]['purchased']))
-don_lb = st.number_input("5. How many lbs of donated per HH?", min_value=0.0, value=float(lbs_per_hh[program]['donated']))
-miles = st.number_input("6. How many miles will this delivery travel?", min_value=0.0, value=30.0)
+logo_path = load_logo()
 
-# === Calculate Button ===
+# === UI Inputs ===
+st.markdown(f"<div style='text-align: center;'><img src='{logo_path}' style='height: 80px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+
+st.subheader("1. Which program is this?")
+program = st.selectbox("", options=list(lbs_per_hh.keys()))
+
+st.subheader("2. How many households are served?")
+hh = st.number_input("", min_value=1, value=350, step=1)
+
+st.subheader("3. How many lbs of produce per HH?")
+prod_lb = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['produce'])
+
+st.subheader("4. How many lbs of purchased per HH?")
+purch_lb = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['purchased'])
+
+st.subheader("5. How many lbs of donated per HH?")
+don_lb = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['donated'])
+
+st.subheader("6. How many miles will this delivery travel?")
+miles = st.number_input("", min_value=0.0, value=30.0)
+
+# === Calculation Button ===
 if st.button("Calculate & Estimate"):
-    # Use correct purchased cost
-    if program == 'BP':
-        purchased_cost = cost_per_lb_fixed['purchased_bp']
-    else:
-        purchased_cost = cost_per_lb_fixed['purchased']
-    
+    # Cost logic
+    purchased_cost = cost_per_lb_fixed['purchased_bp'] if program == 'BP' else cost_per_lb_fixed['purchased']
     produce_cost = cost_per_lb_fixed['produce']
     donated_cost = cost_per_lb_fixed['donated']
 
@@ -68,28 +73,39 @@ if st.button("Calculate & Estimate"):
     purch_cost_hh = purch_lb * purchased_cost
     don_cost_hh = don_lb * donated_cost
 
-    # === Output ===
-    st.markdown("### Calculation Completed")
-    st.subheader("User Inputs")
-    st.markdown(f"- **Program:** {program}")
-    st.markdown(f"- **Households:** {hh}")
-    st.markdown(f"- **Produce per HH:** {prod_lb}")
-    st.markdown(f"- **Purchased per HH:** {purch_lb}")
-    st.markdown(f"- **Donated per HH:** {don_lb}")
-    st.markdown(f"- **Distance:** {miles} miles")
+    # === Styled Output ===
+    st.markdown(f"""
+    <div style='text-align: center;'>
+        <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">
+            <h3 style="color: #3c763d; margin-top: 0; font-size: 22px;">Calculation Completed</h3>
 
-    st.subheader("Calculator Outputs")
-    st.markdown(f"- **Total Weight:** {total_lbs:.2f} lbs")
-    st.markdown(f"- **Base Food Cost:** ${base_cost:.2f}")
-    st.markdown(f"- **Fixed Cost (@ ${FIXED_COST_PER_LB:.4f}/lb):** ${fixed_cost:.2f}")
-    st.markdown(f"- **Transport Cost (@ $0.02/lb/mile):** ${transport_cost:.2f}")
+            <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">User Inputs</h4>
+            <p><strong>Program:</strong> {program}</p>
+            <p><strong>Households:</strong> {hh}</p>
+            <p><strong>Produce per HH:</strong> {prod_lb}</p>
+            <p><strong>Purchased per HH:</strong> {purch_lb}</p>
+            <p><strong>Donated per HH:</strong> {don_lb}</p>
+            <p><strong>Distance:</strong> {miles} miles</p>
 
-    st.subheader("Food Cost Per lb Per HH")
-    st.markdown(f"- **Produce:** {prod_lb} lbs × ${produce_cost:.2f} = ${prod_cost_hh:.2f} per HH")
-    st.markdown(f"- **Purchased:** {purch_lb} lbs × ${purchased_cost:.2f} = ${purch_cost_hh:.2f} per HH")
-    st.markdown(f"- **Donated:** {don_lb} lbs × ${donated_cost:.2f} = ${don_cost_hh:.2f} per HH")
+            <hr style="border-top: 1px solid #ccc; margin: 12px 0;">
 
-    st.subheader("Final Outputs")
-    st.markdown(f"- **Delivery Cost (Food + Transport):** ${delivery_cost:.2f}")
-    st.markdown(f"- **Total Cost (including fixed):** ${total_cost:.2f}")
-    st.markdown(f"- **Blended Cost per lb:** ${total_cost / total_lbs:.4f}")
+            <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">Calculator Outputs</h4>
+            <p><strong>Total Weight:</strong> {total_lbs:.2f} lbs</p>
+            <p><strong>Base Food Cost:</strong> ${base_cost:.2f}</p>
+            <p><strong>Fixed Cost (@ ${FIXED_COST_PER_LB:.4f}/lb):</strong> ${fixed_cost:.2f}</p>
+            <p><strong>Transport Cost (@ $0.02/lb/mile):</strong> ${transport_cost:.2f}</p>
+
+            <h4 style="margin: 12px 0 5px; font-size: 18px; color: #6BA539;">Food Cost Per lb Per HH</h4>
+            <p><strong>Produce:</strong> {prod_lb} lbs × ${produce_cost:.2f} = ${prod_cost_hh:.2f} per HH</p>
+            <p><strong>Purchased:</strong> {purch_lb} lbs × ${purchased_cost:.2f} = ${purch_cost_hh:.2f} per HH</p>
+            <p><strong>Donated:</strong> {don_lb} lbs × ${donated_cost:.2f} = ${don_cost_hh:.2f} per HH</p>
+
+            <hr style="border-top: 1px solid #ccc; margin: 12px 0;">
+
+            <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">Final Outputs</h4>
+            <p><strong>Delivery Cost (Food + Transport):</strong> ${delivery_cost:.2f}</p>
+            <p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
+            <p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)

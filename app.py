@@ -62,8 +62,8 @@ if st.button("Calculate & Estimate"):
     purch_cost_hh = purch_lb * purchased_cost
     don_cost_hh = don_lb * donated_cost
 
-    # === Output HTML ===
-    st.markdown(f"""
+    # === Output ===
+    output_html = f"""
     <div style='background-color:#fff; border-radius:10px; padding:20px; text-align:left; max-width:500px; margin:auto;'>
 
         <h3 style="color: #3c763d; font-size: 22px;">Calculation Completed</h3>
@@ -99,4 +99,7 @@ if st.button("Calculate & Estimate"):
         <p style='color:#000'><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
 
     </div>
-    """, unsafe_allow_html=True)
+    """
+
+    # Render the formatted block
+    st.markdown(output_html, unsafe_allow_html=True)

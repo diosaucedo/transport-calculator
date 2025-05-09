@@ -70,39 +70,37 @@ if submitted:
     purch_cost_hh = purchased_lb * purchased_cost
     don_cost_hh = donated_lb * donated_cost
 
-    # === Output (styled without bullets or asterisks)
+    # === Render output with Streamlit-safe markdown
     st.markdown(f"""
-<div style="background-color: white; padding: 20px 30px; border-radius: 16px; max-width: 500px; margin: 0 auto; font-family: sans-serif; color: black;">
-    <h3 style="color: #3c763d; margin-top: 0;">✅ Calculation Completed</h3>
+### ✅ Calculation Completed
 
-    <h4 style="color: #6BA539;">User Inputs</h4>
-    <p><strong>Program:</strong> {program}</p>
-    <p><strong>Households:</strong> {hh}</p>
-    <p><strong>Produce per HH:</strong> {produce_lb}</p>
-    <p><strong>Purchased per HH:</strong> {purchased_lb}</p>
-    <p><strong>Donated per HH:</strong> {donated_lb}</p>
-    <p><strong>Distance:</strong> {miles} miles</p>
+#### <strong>User Inputs</strong>
+<p><strong>Program:</strong> {program}</p>
+<p><strong>Households:</strong> {hh}</p>
+<p><strong>Produce per HH:</strong> {produce_lb}</p>
+<p><strong>Purchased per HH:</strong> {purchased_lb}</p>
+<p><strong>Donated per HH:</strong> {donated_lb}</p>
+<p><strong>Distance:</strong> {miles} miles</p>
 
-    <hr style="margin: 12px 0;">
+---
 
-    <h4 style="color: #6BA539;">Calculator Outputs</h4>
-    <p><strong>Total Weight:</strong> {total_lbs:.2f} lbs</p>
-    <p><strong>Base Food Cost:</strong> ${base_cost:.2f}</p>
-    <p><strong>Fixed Cost (@ {FIXED_COST_PER_LB:.4f}/lb):</strong> ${fixed_cost:.2f}</p>
-    <p><strong>Transport Cost (@ $0.02/lb/mile):</strong> ${transport_cost:.2f}</p>
+#### <strong>Calculator Outputs</strong>
+<p><strong>Total Weight:</strong> {total_lbs:.2f} lbs</p>
+<p><strong>Base Food Cost:</strong> ${base_cost:.2f}</p>
+<p><strong>Fixed Cost (@ {FIXED_COST_PER_LB:.4f}/lb):</strong> ${fixed_cost:.2f}</p>
+<p><strong>Transport Cost (@ $0.02/lb/mile):</strong> ${transport_cost:.2f}</p>
 
-    <hr style="margin: 12px 0;">
+---
 
-    <h4 style="color: #6BA539;">Food Cost Per lb Per HH</h4>
-    <p><strong>Produce:</strong> {produce_lb} lbs × ${produce_cost:.3f} = ${prod_cost_hh:.2f} per HH</p>
-    <p><strong>Purchased:</strong> {purchased_lb} lbs × ${purchased_cost:.3f} = ${purch_cost_hh:.2f} per HH</p>
-    <p><strong>Donated:</strong> {donated_lb} lbs × ${donated_cost:.2f} = ${don_cost_hh:.2f} per HH</p>
+#### <strong>Food Cost Per lb Per HH</strong>
+<p><strong>Produce:</strong> {produce_lb} lbs × ${produce_cost:.3f} = ${prod_cost_hh:.2f} per HH</p>
+<p><strong>Purchased:</strong> {purchased_lb} lbs × ${purchased_cost:.3f} = ${purch_cost_hh:.2f} per HH</p>
+<p><strong>Donated:</strong> {donated_lb} lbs × ${donated_cost:.2f} = ${don_cost_hh:.2f} per HH</p>
 
-    <hr style="margin: 12px 0;">
+---
 
-    <h4 style="color: #6BA539;">Final Outputs</h4>
-    <p><strong>Delivery Cost (Food + Transport):</strong> ${delivery_cost:.2f}</p>
-    <p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
-    <p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
-</div>
+#### <strong>Final Outputs</strong>
+<p><strong>Delivery Cost (Food + Transport):</strong> ${delivery_cost:.2f}</p>
+<p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
+<p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
 """, unsafe_allow_html=True)

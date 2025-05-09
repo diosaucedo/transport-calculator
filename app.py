@@ -1,6 +1,6 @@
+import pandas as pd
 import streamlit as st
 import base64
-import pandas as pd
 
 # === Constants ===
 FIXED_COST_PER_LB = 13044792 / 17562606  # ≈ 0.7427
@@ -26,28 +26,19 @@ def load_logo():
 
 logo_path = load_logo()
 
-# === UI Inputs ===
+# === UI ===
 st.markdown(f"<div style='text-align: center;'><img src='{logo_path}' style='height: 80px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
-st.subheader("1. Which program is this?")
-program = st.selectbox("", options=list(lbs_per_hh.keys()))
+st.markdown("<h3 style='text-align: center;'>Delivery Cost Estimator</h3>", unsafe_allow_html=True)
 
-st.subheader("2. How many households are served?")
-hh = st.number_input("", min_value=1, value=350, step=1)
+program = st.selectbox("1. Which program is this?", options=list(lbs_per_hh.keys()))
+hh = st.number_input("2. How many households are served?", min_value=1, value=350)
+prod_lb = st.number_input("3. How many lbs of produce per HH?", min_value=0.0, value=lbs_per_hh[program]['produce'])
+purch_lb = st.number_input("4. How many lbs of purchased per HH?", min_value=0.0, value=lbs_per_hh[program]['purchased'])
+don_lb = st.number_input("5. How many lbs of donated per HH?", min_value=0.0, value=lbs_per_hh[program]['donated'])
+miles = st.number_input("6. How many miles will this delivery travel?", min_value=0.0, value=30.0)
 
-st.subheader("3. How many lbs of produce per HH?")
-prod_lb = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['produce'])
-
-st.subheader("4. How many lbs of purchased per HH?")
-purch_lb = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['purchased'])
-
-st.subheader("5. How many lbs of donated per HH?")
-don_lb = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['donated'])
-
-st.subheader("6. How many miles will this delivery travel?")
-miles = st.number_input("", min_value=0.0, value=30.0)
-
-# === Calculation Button ===
+# === Button ===
 if st.button("Calculate & Estimate"):
     # Cost logic
     purchased_cost = cost_per_lb_fixed['purchased_bp'] if program == 'BP' else cost_per_lb_fixed['purchased']
@@ -73,7 +64,7 @@ if st.button("Calculate & Estimate"):
     purch_cost_hh = purch_lb * purchased_cost
     don_cost_hh = don_lb * donated_cost
 
-    # === Styled Output ===
+    # === Render Results ===
     st.markdown(f"""
     <div style='text-align: center;'>
         <div style="background-color: #ffffff; color: #000000; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">

@@ -58,6 +58,10 @@ if st.button("Calculate & Estimate"):
     purch_cost_hh = purchased_per_hh * purch_cost
     don_cost_hh = donated_per_hh * don_cost
 
+    # ✅ HTML Test Line — you'll see this heading if HTML is rendered correctly
+    st.markdown("<h1 style='color: green;'>✅ HTML Rendered!</h1>", unsafe_allow_html=True)
+
+    # === Main Output Box ===
     result_html = f"""
     <div style='text-align: center;'>
         <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">
@@ -97,4 +101,3 @@ if st.button("Calculate & Estimate"):
     """
 
     st.markdown(result_html, unsafe_allow_html=True)
-

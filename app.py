@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import base64
+import textwrap  # 🔧 For fixing HTML indentation
 
 # === Constants ===
 FIXED_COST_PER_LB = 13044792 / 17562606
@@ -58,46 +59,43 @@ if st.button("Calculate & Estimate"):
     purch_cost_hh = purchased_per_hh * purch_cost
     don_cost_hh = donated_per_hh * don_cost
 
-    # ✅ HTML Test Line — you'll see this heading if HTML is rendered correctly
-    st.markdown("<h1 style='color: green;'>✅ HTML Rendered!</h1>", unsafe_allow_html=True)
+    # ✅ HTML Output using dedent to avoid rendering issues
+    result_html = textwrap.dedent(f"""
+        <div style='text-align: center;'>
+            <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">
+                <h3 style="color: #3c763d; margin-top: 0; font-size: 22px;">Calculation Completed</h3>
 
-    # === Main Output Box ===
-    result_html = f"""
-    <div style='text-align: center;'>
-        <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">
-            <h3 style="color: #3c763d; margin-top: 0; font-size: 22px;">Calculation Completed</h3>
+                <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">User Inputs</h4>
+                <p><strong>Program:</strong> {program}</p>
+                <p><strong>Households:</strong> {hh}</p>
+                <p><strong>Produce per HH:</strong> {produce_per_hh}</p>
+                <p><strong>Purchased per HH:</strong> {purchased_per_hh}</p>
+                <p><strong>Donated per HH:</strong> {donated_per_hh}</p>
+                <p><strong>Distance:</strong> {miles} miles</p>
 
-            <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">User Inputs</h4>
-            <p><strong>Program:</strong> {program}</p>
-            <p><strong>Households:</strong> {hh}</p>
-            <p><strong>Produce per HH:</strong> {produce_per_hh}</p>
-            <p><strong>Purchased per HH:</strong> {purchased_per_hh}</p>
-            <p><strong>Donated per HH:</strong> {donated_per_hh}</p>
-            <p><strong>Distance:</strong> {miles} miles</p>
+                <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
 
-            <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
+                <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">Calculator Outputs</h4>
+                <p><strong>Total Weight:</strong> {total_lbs:.2f} lbs</p>
+                <p><strong>Base Food Cost:</strong> ${base_cost:.2f}</p>
+                <p><strong>Fixed Cost (@ ${FIXED_COST_PER_LB:.4f}/lb):</strong> ${fixed_cost:.2f}</p>
+                <p><strong>Transport Cost (@ $0.02/lb/mile):</strong> ${transport_cost:.2f}</p>
 
-            <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">Calculator Outputs</h4>
-            <p><strong>Total Weight:</strong> {total_lbs:.2f} lbs</p>
-            <p><strong>Base Food Cost:</strong> ${base_cost:.2f}</p>
-            <p><strong>Fixed Cost (@ ${FIXED_COST_PER_LB:.4f}/lb):</strong> ${fixed_cost:.2f}</p>
-            <p><strong>Transport Cost (@ $0.02/lb/mile):</strong> ${transport_cost:.2f}</p>
+                <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
 
-            <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
+                <h4 style="margin: 12px 0 5px; font-size: 18px; color: #6BA539;">Food Cost Per lb Per HH</h4>
+                <p><strong>Produce:</strong> {produce_per_hh} lbs × ${prod_cost:.2f} = ${prod_cost_hh:.2f} per HH</p>
+                <p><strong>Purchased:</strong> {purchased_per_hh} lbs × ${purch_cost:.2f} = ${purch_cost_hh:.2f} per HH</p>
+                <p><strong>Donated:</strong> {donated_per_hh} lbs × ${don_cost:.2f} = ${don_cost_hh:.2f} per HH</p>
 
-            <h4 style="margin: 12px 0 5px; font-size: 18px; color: #6BA539;">Food Cost Per lb Per HH</h4>
-            <p><strong>Produce:</strong> {produce_per_hh} lbs × ${prod_cost:.2f} = ${prod_cost_hh:.2f} per HH</p>
-            <p><strong>Purchased:</strong> {purchased_per_hh} lbs × ${purch_cost:.2f} = ${purch_cost_hh:.2f} per HH</p>
-            <p><strong>Donated:</strong> {donated_per_hh} lbs × ${don_cost:.2f} = ${don_cost_hh:.2f} per HH</p>
+                <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
 
-            <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
-
-            <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">Final Outputs</h4>
-            <p><strong>Delivery Cost (Food + Transport):</strong> ${delivery_cost:.2f}</p>
-            <p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
-            <p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
+                <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">Final Outputs</h4>
+                <p><strong>Delivery Cost (Food + Transport):</strong> ${delivery_cost:.2f}</p>
+                <p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
+                <p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
+            </div>
         </div>
-    </div>
-    """
+    """)
 
     st.markdown(result_html, unsafe_allow_html=True)

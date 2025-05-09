@@ -1,19 +1,22 @@
-# app.py
-
 import streamlit as st
 import pandas as pd
-import numpy as np
 import base64
+import numpy as np
 
-# === Data for default values ===
-lbs_per_hh = {
-    'AGENCY': {'produce': 7.5, 'purchased': 2.2, 'donated': 3.3},
-    'BP': {'produce': 10.0, 'purchased': 5.5, 'donated': 1.0}
-}
+# === Page Config ===
+st.set_page_config(layout="centered")
+
+# === Load logo ===
+def load_image():
+    with open("FSD LOGO.png", "rb") as f:
+        encoded_image = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:image/png;base64,{encoded_image}"
 
 # === Constants ===
 FIXED_COST_PER_LB = 13044792 / 17562606  # ≈ 0.7427
 TRANSPORT_COST_PER_LB_PER_MILE = 0.02
+
+# === Cost/lb by group ===
 cost_per_lb_fixed = {
     'produce': 0.17,
     'purchased': 0.85,
@@ -21,64 +24,56 @@ cost_per_lb_fixed = {
     'purchased_bp': 1.27
 }
 
-# === Set page config ===
-st.set_page_config(page_title="Delivery Cost Estimator", layout="centered")
+# === Page Layout ===
+# Center-align the logo
+st.markdown(f'<div style="text-align: center;"><img src="{load_image()}" style="height: 80px; margin-bottom: 20px;"></div>', unsafe_allow_html=True)
 
-# === Load logo ===
-with open("FSD LOGO.png", "rb") as f:
-    encoded_image = base64.b64encode(f.read()).decode("utf-8")
-logo_path = f"data:image/png;base64,{encoded_image}"
+# Input fields
+st.markdown("<h4>1. Which program is this?</h4>", unsafe_allow_html=True)
+program = st.selectbox("", lbs_per_hh.keys(), key="program")
 
-st.markdown(f"""
-<div style='text-align: center;'>
-    <img src="{logo_path}" style='height: 80px; margin-bottom: 20px;'/>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<h4>2. How many households are served?</h4>", unsafe_allow_html=True)
+hh = st.number_input("", value=350, step=1, key="hh")
 
-# === Form ===
-st.markdown("### 1. Which program is this?")
-program = st.selectbox("", options=list(lbs_per_hh.keys()))
+st.markdown("<h4>3. How many lbs of produce per HH?</h4>", unsafe_allow_html=True)
+prod_lb = st.number_input("", value=float(lbs_per_hh[program]['produce']), key="produce")
 
-st.markdown("### 2. How many households are served?")
-hh = st.number_input("", min_value=1, value=350, step=1)
+st.markdown("<h4>4. How many lbs of purchased per HH?</h4>", unsafe_allow_html=True)
+purch_lb = st.number_input("", value=float(lbs_per_hh[program]['purchased']), key="purchased")
 
-st.markdown("### 3. How many lbs of produce per HH?")
-produce = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['produce'], step=0.1)
+st.markdown("<h4>5. How many lbs of donated per HH?</h4>", unsafe_allow_html=True)
+don_lb = st.number_input("", value=float(lbs_per_hh[program]['donated']), key="donated")
 
-st.markdown("### 4. How many lbs of purchased per HH?")
-purchased = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['purchased'], step=0.1)
+st.markdown("<h4>6. How many miles will this delivery travel?</h4>", unsafe_allow_html=True)
+miles = st.number_input("", value=30.0, key="miles")
 
-st.markdown("### 5. How many lbs of donated per HH?")
-donated = st.number_input("", min_value=0.0, value=lbs_per_hh[program]['donated'], step=0.1)
-
-st.markdown("### 6. How many miles will this delivery travel?")
-miles = st.number_input("", min_value=0.0, value=30.0, step=0.5)
-
-# === Calculate button ===
-if st.button("Calculate & Estimate"):
-    # Per-lb costs
+# Calculate button
+if st.button("Calculate & Estimate", type="primary"):
+    # Cost calculations
     produce_cost = cost_per_lb_fixed['produce']
     donated_cost = cost_per_lb_fixed['donated']
     purchased_cost = cost_per_lb_fixed['purchased_bp'] if program == 'BP' else cost_per_lb_fixed['purchased']
 
-    # Weight totals
-    prod_total = produce * hh
-    purch_total = purchased * hh
-    don_total = donated * hh
+    prod_total = prod_lb * hh
+    purch_total = purch_lb * hh
+    don_total = don_lb * hh
     total_lbs = prod_total + purch_total + don_total
 
-    # Costs
-    base_cost = prod_total * produce_cost + purch_total * purchased_cost + don_total * donated_cost
+    base_cost = (
+        prod_total * produce_cost +
+        purch_total * purchased_cost +
+        don_total * donated_cost
+    )
     fixed_cost = total_lbs * FIXED_COST_PER_LB
     transport_cost = total_lbs * miles * TRANSPORT_COST_PER_LB_PER_MILE
     delivery_cost = base_cost + transport_cost
     total_cost = base_cost + fixed_cost + transport_cost
 
-    prod_cost_hh = produce * produce_cost
-    purch_cost_hh = purchased * purchased_cost
-    don_cost_hh = donated * donated_cost
+    prod_cost_hh = prod_lb * produce_cost
+    purch_cost_hh = purch_lb * purchased_cost
+    don_cost_hh = don_lb * donated_cost
 
-    # === Output display ===
+    # Output display
     st.markdown(f"""
     <div style='text-align: center;'>
         <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; display: inline-block; text-align: left; max-width: 360px;">
@@ -87,9 +82,9 @@ if st.button("Calculate & Estimate"):
             <h4 style="margin-bottom: 5px; font-size: 18px; color: #6BA539;">User Inputs</h4>
             <p style='color:#000;'><strong>Program:</strong> {program}</p>
             <p style='color:#000;'><strong>Households:</strong> {hh}</p>
-            <p style='color:#000;'><strong>Produce per HH:</strong> {produce}</p>
-            <p style='color:#000;'><strong>Purchased per HH:</strong> {purchased}</p>
-            <p style='color:#000;'><strong>Donated per HH:</strong> {donated}</p>
+            <p style='color:#000;'><strong>Produce per HH:</strong> {prod_lb}</p>
+            <p style='color:#000;'><strong>Purchased per HH:</strong> {purch_lb}</p>
+            <p style='color:#000;'><strong>Donated per HH:</strong> {don_lb}</p>
             <p style='color:#000;'><strong>Distance:</strong> {miles} miles</p>
 
             <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
@@ -103,9 +98,9 @@ if st.button("Calculate & Estimate"):
             <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
 
             <h4 style="margin: 12px 0 5px; font-size: 18px; color: #6BA539;">Food Cost Per lb Per HH</h4>
-            <p style='color:#000;'><strong>Produce:</strong> {produce} lbs × ${produce_cost:.2f} = ${prod_cost_hh:.2f} per HH</p>
-            <p style='color:#000;'><strong>Purchased:</strong> {purchased} lbs × ${purchased_cost:.2f} = ${purch_cost_hh:.2f} per HH</p>
-            <p style='color:#000;'><strong>Donated:</strong> {donated} lbs × ${donated_cost:.2f} = ${don_cost_hh:.2f} per HH</p>
+            <p style='color:#000;'><strong>Produce:</strong> {prod_lb} lbs × ${produce_cost:.2f} = ${prod_cost_hh:.2f} per HH</p>
+            <p style='color:#000;'><strong>Purchased:</strong> {purch_lb} lbs × ${purchased_cost:.2f} = ${purch_cost_hh:.2f} per HH</p>
+            <p style='color:#000;'><strong>Donated:</strong> {don_lb} lbs × ${donated_cost:.2f} = ${don_cost_hh:.2f} per HH</p>
 
             <hr style="border: none; border-top: 1px solid #ccc; margin: 12px 0;">
 

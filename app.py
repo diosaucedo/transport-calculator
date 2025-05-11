@@ -8,21 +8,18 @@ with open("FSD LOGO.png", "rb") as f:
 logo_path = f"data:image/png;base64,{encoded_image}"
 
 # === Constants ===
-FIXED_COST_PER_LB = 13044792 / 17562606  # ≈ 0.7427
+FIXED_COST_PER_LB = 13044792 / 17562606
 TRANSPORT_COST_PER_LB_PER_MILE = 0.02
-donated_cost = 0.04  # locked
+DONATED_COST = 0.04
 
-# === Cost estimates from data ===
+# === Cost estimates from model-derived data ===
 cost_estimates = pd.DataFrame([
-    {'PROGRAM': 'AGENCY', 'estimated_produce_cost_per_lb': 0.079, 'estimated_purchased_cost_per_lb': 0.85},
-    {'PROGRAM': 'BP', 'estimated_produce_cost_per_lb': 0.17, 'estimated_purchased_cost_per_lb': 1.27},
-    {'PROGRAM': 'MEM', 'estimated_produce_cost_per_lb': 0.12, 'estimated_purchased_cost_per_lb': 0.91},
-    {'PROGRAM': 'MP', 'estimated_produce_cost_per_lb': 0.11, 'estimated_purchased_cost_per_lb': 0.89},
-    {'PROGRAM': 'PP', 'estimated_produce_cost_per_lb': 0.10, 'estimated_purchased_cost_per_lb': 0.93},
-    {'PROGRAM': 'SP', 'estimated_produce_cost_per_lb': 0.13, 'estimated_purchased_cost_per_lb': 0.96}
+    {'PROGRAM': 'AGENCY', 'estimated_produce_cost_per_lb': 0.4282, 'estimated_purchased_cost_per_lb': 0.8918},
+    {'PROGRAM': 'BP', 'estimated_produce_cost_per_lb': 0.1835, 'estimated_purchased_cost_per_lb': 1.27},
+    {'PROGRAM': 'MP', 'estimated_produce_cost_per_lb': 0.5822, 'estimated_purchased_cost_per_lb': 0.9}
 ])
 
-# === Default lbs per HH
+# === Default lbs per HH ===
 lbs_per_hh = {
     'AGENCY': {'produce': 4, 'purchased': 6, 'donated': 5},
     'MEM': {'produce': 3, 'purchased': 5, 'donated': 2},
@@ -47,30 +44,32 @@ with st.form("calculator_form"):
     submitted = st.form_submit_button("Calculate & Estimate")
 
 if submitted:
-    # === Look up costs
     row = cost_estimates[cost_estimates['PROGRAM'] == program].iloc[0]
-    produce_cost = row['estimated_produce_cost_per_lb']
-    purchased_cost = row['estimated_purchased_cost_per_lb']
+    produce_cost = row['estimated_produce_cost_per_lb'] if pd.notna(row['estimated_produce_cost_per_lb']) else 0
+    if program == 'BP':
+        purchased_cost = 1.27
+    else:
+        purchased_cost = row['estimated_purchased_cost_per_lb'] if pd.notna(row['estimated_purchased_cost_per_lb']) else 0
 
-    # === Calculate weights
     prod_total = produce_lb * hh
     purch_total = purchased_lb * hh
     don_total = donated_lb * hh
     total_lbs = prod_total + purch_total + don_total
 
-    # === Calculate costs
-    base_cost = prod_total * produce_cost + purch_total * purchased_cost + don_total * donated_cost
+    base_cost = (
+        prod_total * produce_cost +
+        purch_total * purchased_cost +
+        don_total * DONATED_COST
+    )
     fixed_cost = total_lbs * FIXED_COST_PER_LB
     transport_cost = total_lbs * miles * TRANSPORT_COST_PER_LB_PER_MILE
     delivery_cost = base_cost + transport_cost
     total_cost = base_cost + fixed_cost + transport_cost
 
-    # === Per HH itemized cost
     prod_cost_hh = produce_lb * produce_cost
     purch_cost_hh = purchased_lb * purchased_cost
-    don_cost_hh = donated_lb * donated_cost
+    don_cost_hh = donated_lb * DONATED_COST
 
-    # === Render output with Streamlit-safe markdown
     st.markdown(f"""
 ### Calculation Completed
 
@@ -95,7 +94,7 @@ if submitted:
 #### <strong>Food Cost Per lb Per HH</strong>
 <p><strong>Produce:</strong> {produce_lb} lbs × ${produce_cost:.3f} = ${prod_cost_hh:.2f} per HH</p>
 <p><strong>Purchased:</strong> {purchased_lb} lbs × ${purchased_cost:.3f} = ${purch_cost_hh:.2f} per HH</p>
-<p><strong>Donated:</strong> {donated_lb} lbs × ${donated_cost:.2f} = ${don_cost_hh:.2f} per HH</p>
+<p><strong>Donated:</strong> {donated_lb} lbs × ${DONATED_COST:.2f} = ${don_cost_hh:.2f} per HH</p>
 
 ---
 
@@ -104,3 +103,4 @@ if submitted:
 <p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
 <p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
 """, unsafe_allow_html=True)
+

@@ -1,6 +1,6 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
-import streamlit as st
 import base64
 
 # === Load logo ===
@@ -14,8 +14,8 @@ TRANSPORT_COST_PER_LB_PER_MILE = 0.02
 DONATED_COST = 0.04
 
 # === Load model input data and compute cost estimates ===
-quarterly_path = '/content/drive/My Drive/Final_Quarterly_Data.xlsx'
-merged_path = '/content/drive/My Drive/merged_final.xlsx'
+quarterly_path = 'Final_Quarterly_Data.xlsx'
+merged_path = 'merged_final.xlsx'
 
 quarter_df = pd.read_excel(quarterly_path)
 merged_df = pd.read_excel(merged_path)
@@ -113,13 +113,19 @@ for _, row in program_agg.iterrows():
 cost_estimates = pd.DataFrame(results)
 
 # === Calculator UI ===
-st.markdown(f"<div style='text-align: center;'><img src='{logo_path}' style='height: 140px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
-st.title("Delivery Cost Calculator with Model")
+lbs_per_hh = {
+    'AGENCY': {'produce': 0, 'purchased': 0, 'donated': 0},
+    'BP': {'produce': 0, 'purchased': 0, 'donated': 0},
+    'MP': {'produce': 0, 'purchased': 0, 'donated': 0},
+    'PP': {'produce': 0, 'purchased': 0, 'donated': 0},
+    'SP': {'produce': 0, 'purchased': 0, 'donated': 0}
+}
 
-program_options = ['AGENCY', 'BP', 'MP', 'PP', 'SP']
+st.markdown(f"<div style='text-align: center;'><img src='{logo_path}' style='height: 140px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+st.title("Cost Calculator")
 
 with st.form("calculator_form"):
-    program = st.selectbox("1. Which program is this?", program_options)
+    program = st.selectbox("1. Which program is this?", list(lbs_per_hh.keys()))
     hh = st.number_input("2. How many households are served?", min_value=1, value=350)
     produce_lb = st.number_input("3. How many lbs of produce per HH?", min_value=0.0, value=0.0)
     purchased_lb = st.number_input("4. How many lbs of purchased per HH?", min_value=0.0, value=0.0)

@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import base64
-import streamlit.components.v1 as components
 
 # === Load logo ===
 with open("FSD LOGO.png", "rb") as f:
@@ -112,12 +111,6 @@ for _, row in program_agg.iterrows():
     })
 
 cost_estimates = pd.DataFrame(results)
-
-# === Sidebar button to show upload.html ===
-with st.sidebar:
-    if st.button("Open Upload Form"):
-        st.write("### Upload Form")
-        components.html(open('upload.html', 'r').read(), height=600)
 
 # === Calculator UI ===
 lbs_per_hh = {

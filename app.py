@@ -1,7 +1,14 @@
+# === Install & Run Commands (run these in terminal) ===
+# pip install streamlit gspread oauth2client pandas numpy openpyxl
+# streamlit run app.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import base64
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
 # === Load logo ===
 with open("FSD LOGO.png", "rb") as f:
@@ -113,13 +120,7 @@ for _, row in program_agg.iterrows():
 cost_estimates = pd.DataFrame(results)
 
 # === Calculator UI ===
-lbs_per_hh = {
-    'AGENCY': {'produce': 0, 'purchased': 0, 'donated': 0},
-    'BP': {'produce': 0, 'purchased': 0, 'donated': 0},
-    'MP': {'produce': 0, 'purchased': 0, 'donated': 0},
-    'PP': {'produce': 0, 'purchased': 0, 'donated': 0},
-    'SP': {'produce': 0, 'purchased': 0, 'donated': 0}
-}
+lbs_per_hh = {key: {'produce': 0, 'purchased': 0, 'donated': 0} for key in lbs_per_hh_model.keys()}
 
 st.markdown(f"<div style='text-align: center;'><img src='{logo_path}' style='height: 140px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 st.title("Cost Calculator")
@@ -192,3 +193,29 @@ if submitted:
 <p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
 <p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
 """, unsafe_allow_html=True)
+
+    # === Google Sheets Logging ===
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
+        client = gspread.authorize(creds)
+        sheet = client.open("Streamlit Calculator Outputs").sheet1
+
+        sheet.append_row([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            program,
+            hh,
+            produce_lb,
+            purchased_lb,
+            donated_lb,
+            miles,
+            round(total_lbs, 2),
+            round(base_cost, 2),
+            round(fixed_cost, 2),
+            round(transport_cost, 2),
+            round(delivery_cost, 2),
+            round(total_cost, 2),
+            round(total_cost / total_lbs, 4)
+        ])
+    except Exception as e:
+        st.error(f"Google Sheets Logging failed: {e}")

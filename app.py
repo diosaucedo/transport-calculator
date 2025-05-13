@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import base64
+import os
 
 # === Load logo ===
 with open("FSD LOGO.png", "rb") as f:
@@ -12,6 +13,9 @@ logo_path = f"data:image/png;base64,{encoded_image}"
 FIXED_COST_PER_LB = 13044792 / 17562606
 TRANSPORT_COST_PER_LB_PER_MILE = 0.02
 DONATED_COST = 0.04
+
+# === Paths ===
+LOG_FILE_PATH = 'Calculator_log.xlsx'
 
 # === Load model input data and compute cost estimates ===
 quarterly_path = 'Final_Quarterly_Data.xlsx'
@@ -33,6 +37,7 @@ final_df['Estimated_Donated_%'] = (
 final_df['Estimated_Donated_Weight'] = final_df['Estimated_Donated_%'] * final_df['Weight']
 final_df['Estimated_Purchased_Weight'] = final_df['Weight'] - final_df['Estimated_Donated_Weight']
 
+# === Food ratios by program ===
 lbs_per_hh_model = {
     'AGENCY': {'produce': 16, 'purchased': None, 'donated': None},
     'BP': {'produce': 4, 'purchased': 4, 'donated': 4},
@@ -50,6 +55,7 @@ for prog, values in lbs_per_hh_model.items():
         'donated_ratio': (values['donated'] or 0) / total if total else 0
     }
 
+# === Ratios application ===
 def apply_ratios(row):
     ratios = program_food_ratios.get(row['PROGRAM'], {'produce_ratio': 0, 'purchased_ratio': 0, 'donated_ratio': 0})
     weight = row['Weight']
@@ -71,6 +77,7 @@ program_agg = final_df.groupby('PROGRAM').agg({
     'Estimated_Donated_Weight': 'sum'
 }).reset_index()
 
+# === Cost estimations ===
 results = []
 for _, row in program_agg.iterrows():
     prog = row['PROGRAM']
@@ -113,19 +120,11 @@ for _, row in program_agg.iterrows():
 cost_estimates = pd.DataFrame(results)
 
 # === Calculator UI ===
-lbs_per_hh = {
-    'AGENCY': {'produce': 0, 'purchased': 0, 'donated': 0},
-    'BP': {'produce': 0, 'purchased': 0, 'donated': 0},
-    'MP': {'produce': 0, 'purchased': 0, 'donated': 0},
-    'PP': {'produce': 0, 'purchased': 0, 'donated': 0},
-    'SP': {'produce': 0, 'purchased': 0, 'donated': 0}
-}
-
 st.markdown(f"<div style='text-align: center;'><img src='{logo_path}' style='height: 140px; margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 st.title("Cost Calculator")
 
 with st.form("calculator_form"):
-    program = st.selectbox("1. Which program is this?", list(lbs_per_hh.keys()))
+    program = st.selectbox("1. Which program is this?", list(program_food_ratios.keys()))
     hh = st.number_input("2. How many households are served?", min_value=1, value=350)
     produce_lb = st.number_input("3. How many lbs of produce per HH?", min_value=0.0, value=0.0)
     purchased_lb = st.number_input("4. How many lbs of purchased per HH?", min_value=0.0, value=0.0)
@@ -155,69 +154,30 @@ if submitted:
     delivery_cost = base_cost + transport_cost
     total_cost = base_cost + fixed_cost + transport_cost
 
-    prod_cost_hh = produce_lb * produce_cost
-    purch_cost_hh = purchased_lb * purchased_cost
-    don_cost_hh = donated_lb * DONATED_COST
-
-    st.markdown(f"""
-### Calculation Completed
-
-#### <strong>User Inputs</strong>
-<p><strong>Program:</strong> {program}</p>
-<p><strong>Households:</strong> {hh}</p>
-<p><strong>Produce per HH:</strong> {produce_lb}</p>
-<p><strong>Purchased per HH:</strong> {purchased_lb}</p>
-<p><strong>Donated per HH:</strong> {donated_lb}</p>
-<p><strong>Distance:</strong> {miles} miles</p>
-
----
-
-#### <strong>Calculator Outputs</strong>
-<p><strong>Total Weight:</strong> {total_lbs:.2f} lbs</p>
-<p><strong>Base Food Cost:</strong> ${base_cost:.2f}</p>
-<p><strong>Fixed Cost (@ {FIXED_COST_PER_LB:.4f}/lb):</strong> ${fixed_cost:.2f}</p>
-<p><strong>Transport Cost (@ $0.02/lb/mile):</strong> ${transport_cost:.2f}</p>
-
----
-
-#### <strong>Food Cost Per lb Per HH</strong>
-<p><strong>Produce:</strong> {produce_lb} lbs × ${produce_cost:.3f} = ${prod_cost_hh:.2f} per HH</p>
-<p><strong>Purchased:</strong> {purchased_lb} lbs × ${purchased_cost:.3f} = ${purch_cost_hh:.2f} per HH</p>
-<p><strong>Donated:</strong> {donated_lb} lbs × ${DONATED_COST:.2f} = ${don_cost_hh:.2f} per HH</p>
-
----
-
-#### <strong>Final Outputs</strong>
-<p><strong>Delivery Cost (Food + Transport):</strong> ${delivery_cost:.2f}</p>
-<p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
-<p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
-""", unsafe_allow_html=True)
-
-    # === Append to log Excel ===
-    log_entry = pd.DataFrame([{
+    # === Logging inputs and outputs to Excel ===
+    log_row = {
         'Program': program,
         'Households': hh,
-        'Produce_lb_per_HH': produce_lb,
-        'Purchased_lb_per_HH': purchased_lb,
-        'Donated_lb_per_HH': donated_lb,
+        'Produce_per_HH': produce_lb,
+        'Purchased_per_HH': purchased_lb,
+        'Donated_per_HH': donated_lb,
         'Miles': miles,
         'Total_Weight': total_lbs,
-        'Base_Food_Cost': base_cost,
+        'Base_Cost': base_cost,
         'Fixed_Cost': fixed_cost,
         'Transport_Cost': transport_cost,
         'Delivery_Cost': delivery_cost,
         'Total_Cost': total_cost,
-        'Blended_Cost_per_lb': total_cost / total_lbs if total_lbs else 0
-    }])
+        'Blended_Cost_per_lb': total_cost / total_lbs if total_lbs else None
+    }
 
-    try:
-        try:
-            log_df = pd.read_excel('Calculator_Log.xlsx')
-            log_df = pd.concat([log_df, log_entry], ignore_index=True)
-        except FileNotFoundError:
-            log_df = log_entry
+    # Append log to file
+    if os.path.exists(LOG_FILE_PATH):
+        df_log = pd.read_excel(LOG_FILE_PATH)
+        df_log = pd.concat([df_log, pd.DataFrame([log_row])], ignore_index=True)
+    else:
+        df_log = pd.DataFrame([log_row])
+    df_log.to_excel(LOG_FILE_PATH, index=False)
 
-        log_df.to_excel('Calculator_Log.xlsx', index=False)
-        st.success("✅ Calculator log successfully updated.")
-    except Exception as e:
-        st.error(f"❌ Failed to update log: {e}")
+    st.success("Calculation completed and logged successfully!")
+

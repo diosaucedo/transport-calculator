@@ -192,3 +192,32 @@ if submitted:
 <p><strong>Total Cost:</strong> ${total_cost:.2f}</p>
 <p><strong>Blended Cost per lb:</strong> ${total_cost / total_lbs:.4f}</p>
 """, unsafe_allow_html=True)
+
+    # === Append to log Excel ===
+    log_entry = pd.DataFrame([{
+        'Program': program,
+        'Households': hh,
+        'Produce_lb_per_HH': produce_lb,
+        'Purchased_lb_per_HH': purchased_lb,
+        'Donated_lb_per_HH': donated_lb,
+        'Miles': miles,
+        'Total_Weight': total_lbs,
+        'Base_Food_Cost': base_cost,
+        'Fixed_Cost': fixed_cost,
+        'Transport_Cost': transport_cost,
+        'Delivery_Cost': delivery_cost,
+        'Total_Cost': total_cost,
+        'Blended_Cost_per_lb': total_cost / total_lbs if total_lbs else 0
+    }])
+
+    try:
+        try:
+            log_df = pd.read_excel('Calculator_Log.xlsx')
+            log_df = pd.concat([log_df, log_entry], ignore_index=True)
+        except FileNotFoundError:
+            log_df = log_entry
+
+        log_df.to_excel('Calculator_Log.xlsx', index=False)
+        st.success("✅ Calculator log successfully updated.")
+    except Exception as e:
+        st.error(f"❌ Failed to update log: {e}")

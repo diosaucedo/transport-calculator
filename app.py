@@ -13,25 +13,9 @@ FIXED_COST_PER_LB = 13044792 / 17562606
 TRANSPORT_COST_PER_LB_PER_MILE = 0.02
 DONATED_COST = 0.04
 
-# === Load model input data and compute cost estimates ===
+# === Load data and compute cost estimates ===
 quarterly_path = 'Final_Quarterly_Data.xlsx'
-merged_path = 'merged_final.xlsx'
-
 quarter_df = pd.read_excel(quarterly_path)
-merged_df = pd.read_excel(merged_path)
-
-merged_df = merged_df[['Location', 'PROGRAM', '% Donated (per location)']]
-program_means = merged_df.groupby('PROGRAM')['% Donated (per location)'].mean().reset_index()
-program_means.rename(columns={'% Donated (per location)': 'Program_Mean_Donated_%'}, inplace=True)
-
-final_df = quarter_df.merge(merged_df, on=['Location', 'PROGRAM'], how='left')
-final_df = final_df.merge(program_means, on='PROGRAM', how='left')
-final_df['Estimated_Donated_%'] = (
-    0.8 * final_df['% Donated (per location)'] +
-    0.2 * final_df['Program_Mean_Donated_%']
-)
-final_df['Estimated_Donated_Weight'] = final_df['Estimated_Donated_%'] * final_df['Weight']
-final_df['Estimated_Purchased_Weight'] = final_df['Weight'] - final_df['Estimated_Donated_Weight']
 
 lbs_per_hh_model = {
     'AGENCY': {'produce': 16, 'purchased': None, 'donated': None},
@@ -59,11 +43,11 @@ def apply_ratios(row):
         'Estimated_Donated_Weight': weight * ratios['donated_ratio']
     })
 
-estimated_weights = final_df.apply(apply_ratios, axis=1)
-final_df[['Estimated_Produce_Weight', 'Estimated_Purchased_Weight', 'Estimated_Donated_Weight']] = estimated_weights
+quarter_df = quarter_df[quarter_df['Cost'] > 1]
+estimated_weights = quarter_df.apply(apply_ratios, axis=1)
+quarter_df[['Estimated_Produce_Weight', 'Estimated_Purchased_Weight', 'Estimated_Donated_Weight']] = estimated_weights
 
-final_df = final_df[final_df['Cost'] > 1]
-program_agg = final_df.groupby('PROGRAM').agg({
+program_agg = quarter_df.groupby('PROGRAM').agg({
     'Cost': 'sum',
     'Weight': 'sum',
     'Estimated_Produce_Weight': 'sum',

@@ -103,9 +103,25 @@ st.title("Cost Calculator")
 with st.form("calculator_form"):
     program = st.selectbox("1. Which program is this?", list(lbs_per_hh_model.keys()))
     hh = st.number_input("2. How many households are served per delivery?", min_value=1, value=350)
-    produce_lb = st.number_input("3. How many lbs of produce per HH?", min_value=0.0, value=0.0)
-    purchased_lb = st.number_input("4. How many lbs of purchased per HH?", min_value=0.0, value=0.0)
-    donated_lb = st.number_input("5. How many lbs of donated per HH?", min_value=0.0, value=0.0)
+
+    produce_lb = st.number_input(
+        "3. How many lbs of produce per HH?",
+        min_value=0.0,
+        value=float(lbs_per_hh_model[program]['produce']) if lbs_per_hh_model[program]['produce'] is not None else 0.0
+    )
+
+    purchased_lb = st.number_input(
+        "4. How many lbs of purchased per HH?",
+        min_value=0.0,
+        value=float(lbs_per_hh_model[program]['purchased']) if lbs_per_hh_model[program]['purchased'] is not None else 0.0
+    )
+
+    donated_lb = st.number_input(
+        "5. How many lbs of donated per HH?",
+        min_value=0.0,
+        value=float(lbs_per_hh_model[program]['donated']) if lbs_per_hh_model[program]['donated'] is not None else 0.0
+    )
+
     miles = st.number_input("6. How many miles will this delivery travel?", min_value=0.0, value=30.0)
     deliveries = st.number_input("7. How many annual deliveries will this program receive?", min_value=1, value=12)
 
@@ -168,4 +184,4 @@ if submitted:
 <p><strong>Total Annual Cost:</strong> ${total_cost:.2f}</p>
 <p><strong>Total Annual Lbs Distributed:</strong> {total_annual_lbs:.2f} lbs</p>
 <p><strong>Blended Annual Cost per lb:</strong> ${blended_annual_cost_per_lb:.4f}</p>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True) 

@@ -134,8 +134,12 @@ if submitted:
         purchased_cost = 0
     else:
         row = match.iloc[0]
-        produce_cost = row['estimated_produce_cost_per_lb'] if pd.notna(row['estimated_produce_cost_per_lb']) else 0
-        purchased_cost = 1.27 if program == 'BP' else row['estimated_purchased_cost_per_lb'] if pd.notna(row['estimated_purchased_cost_per_lb']) else 0
+        if program == 'BP':
+            purchased_cost = 1.27
+            produce_cost = row['estimated_produce_cost_per_lb'] if pd.notna(row['estimated_produce_cost_per_lb']) else 0
+        else:
+            produce_cost = row['estimated_produce_cost_per_lb'] if pd.notna(row['estimated_produce_cost_per_lb']) else 0
+            purchased_cost = row['estimated_purchased_cost_per_lb'] if pd.notna(row['estimated_purchased_cost_per_lb']) else 0
 
     prod_total = produce_lb * hh
     purch_total = purchased_lb * hh

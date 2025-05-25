@@ -18,7 +18,7 @@ quarterly_path = 'Final_Quarterly_Data.xlsx'
 quarter_df = pd.read_excel(quarterly_path)
 
 lbs_per_hh_model = {
-    'AGENCY': {'produce': 16, 'purchased': None, 'donated': None},
+    'AGENCY': {'produce': 16, 'purchased': 0, 'donated': 0},
     'BP': {'produce': 4, 'purchased': 4, 'donated': 4},
     'MP': {'produce': 16, 'purchased': 5, 'donated': 2},
     'PP': {'produce': 24, 'purchased': 0, 'donated': 0},
@@ -107,19 +107,19 @@ with st.form("calculator_form"):
     produce_lb = st.number_input(
         "3. How many lbs of produce per HH?",
         min_value=0.0,
-        value=float(lbs_per_hh_model[program]['produce']) if lbs_per_hh_model[program]['produce'] is not None else 0.0
+        value=float(lbs_per_hh_model[program]['produce'])
     )
 
     purchased_lb = st.number_input(
         "4. How many lbs of purchased per HH?",
         min_value=0.0,
-        value=float(lbs_per_hh_model[program]['purchased']) if lbs_per_hh_model[program]['purchased'] is not None else 0.0
+        value=float(lbs_per_hh_model[program]['purchased'])
     )
 
     donated_lb = st.number_input(
         "5. How many lbs of donated per HH?",
         min_value=0.0,
-        value=float(lbs_per_hh_model[program]['donated']) if lbs_per_hh_model[program]['donated'] is not None else 0.0
+        value=float(lbs_per_hh_model[program]['donated'])
     )
 
     miles = st.number_input("6. How many miles will this delivery travel?", min_value=0.0, value=30.0)

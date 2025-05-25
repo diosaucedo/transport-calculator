@@ -129,6 +129,8 @@ with st.form("calculator_form"):
 
 if submitted:
     match = cost_estimates[cost_estimates['PROGRAM'] == program]
+    agg_row = program_agg[program_agg['PROGRAM'] == program].iloc[0]
+
     if match.empty:
         produce_cost = 0
         purchased_cost = 0
@@ -139,7 +141,7 @@ if submitted:
             if pd.notna(row['estimated_produce_cost_per_lb']):
                 produce_cost = row['estimated_produce_cost_per_lb']
             else:
-                blended = row['Cost'] / row['Weight'] if row['Weight'] > 0 else 0
+                blended = agg_row['Cost'] / agg_row['Weight'] if agg_row['Weight'] > 0 else 0
                 r = 1 / 3
                 produce_cost = (blended - (r * 1.27 + r * DONATED_COST)) / r
         else:

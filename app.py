@@ -136,7 +136,12 @@ if submitted:
         row = match.iloc[0]
         if program == 'BP':
             purchased_cost = 1.27
-            produce_cost = row['estimated_produce_cost_per_lb'] if pd.notna(row['estimated_produce_cost_per_lb']) else 0
+            if pd.notna(row['estimated_produce_cost_per_lb']):
+                produce_cost = row['estimated_produce_cost_per_lb']
+            else:
+                blended = row['Cost'] / row['Weight'] if row['Weight'] > 0 else 0
+                r = 1 / 3
+                produce_cost = (blended - (r * 1.27 + r * DONATED_COST)) / r
         else:
             produce_cost = row['estimated_produce_cost_per_lb'] if pd.notna(row['estimated_produce_cost_per_lb']) else 0
             purchased_cost = row['estimated_purchased_cost_per_lb'] if pd.notna(row['estimated_purchased_cost_per_lb']) else 0
@@ -189,3 +194,4 @@ if submitted:
 <p><strong>Total Annual Lbs Distributed:</strong> {total_annual_lbs:.2f} lbs</p>
 <p><strong>Blended Annual Cost per lb:</strong> ${blended_annual_cost_per_lb:.4f}</p>
 """, unsafe_allow_html=True) 
+

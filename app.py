@@ -18,7 +18,7 @@ quarterly_path = 'Final_Quarterly_Data.xlsx'
 quarter_df = pd.read_excel(quarterly_path)
 
 lbs_per_hh_model = {
-    'AGENCY': {'produce': 16, 'purchased': 0, 'donated': 0},
+    'AGENCY': {'produce': 16, 'purchased': 5, 'donated': 2},
     'BP': {'produce': 4, 'purchased': 4, 'donated': 4},
     'MP': {'produce': 16, 'purchased': 5, 'donated': 2},
     'PP': {'produce': 24, 'purchased': 0, 'donated': 0},
